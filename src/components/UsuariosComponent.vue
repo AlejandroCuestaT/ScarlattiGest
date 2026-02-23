@@ -1,67 +1,56 @@
 <template>
-  <div class="gestion-container">
-    <div class="header-seccion">
-      <h2>Control de Cuentas de Usuario</h2>
-      <button @click="mostrarForm = !mostrarForm" class="btn-principal">
-        {{ mostrarForm ? 'Cerrar' : 'Nuevo Usuario' }}
+  <div>
+    <div class="cabecera">
+      <h2>Usuarios</h2>
+      <button @click="mostrarFormulario = !mostrarFormulario">
+        {{ mostrarFormulario ? 'Cerrar' : 'Nuevo Usuario' }}
       </button>
     </div>
 
-    <div v-if="mostrarForm" class="formulario-card">
-      <h3>Crear credenciales de acceso</h3>
-      <form @submit.prevent="guardarUsuario">
-        <div class="fila-form">
-          <div class="grupo-input">
-            <label>Nombre de Usuario (Login):</label>
-            <input v-model="nuevoUsuario.login" placeholder="Ej: jgarcia22" required>
-          </div>
-          <div class="grupo-input">
-            <label>Contraseña:</label>
-            <input v-model="nuevoUsuario.password_hash" type="password" placeholder="****" required>
-          </div>
-        </div>
-
-        <div class="fila-form">
-          <div class="grupo-input">
-            <label>Rol asignado (ID):</label>
-            <input v-model="nuevoUsuario.rol_id" placeholder="1:Admin, 2:Prof, 3:Alum" required>
-          </div>
-          <div class="grupo-input">
-            <label>Referencia Identidad (ID):</label>
-            <input v-model="nuevoUsuario.ref_identidad_fk" placeholder="ID Alumno/Profesor" required>
-          </div>
-        </div>
-
-        <button type="submit" class="btn-guardar">Crear Usuario</button>
+    <div v-if="mostrarFormulario" class="formulario">
+      <h3>Crear usuario</h3>
+      <form @submit.prevent="guardar">
+        <input v-model="form.login"            placeholder="Nombre de usuario" required>
+        <input v-model="form.password_hash"    placeholder="Contraseña" type="password" required>
+        <input v-model="form.rol_id"           placeholder="ID Rol (Admin, Prof, Alum, TIC)" required>
+        <input v-model="form.ref_identidad_fk" placeholder="ID Referencia (DNI del profesor o NIA del alumno)" required>
+        <select v-model="form.estado_id">
+          <option value="Act">Activo</option>
+          <option value="Baj">Baja</option>
+          <option value="Bloq">Bloqueado</option>
+        </select>
+        <button type="submit">Crear Usuario</button>
       </form>
     </div>
 
-    <div class="tabla-contenedor">
-      <table class="tabla-minimal">
-        <thead>
-          <tr>
-            <th>Login</th>
-            <th>Rol</th>
-            <th>ID Ref</th>
-            <th>Estado</th>
-            <th>Último Acceso</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="u in usuarios" :key="u.login">
-            <td><strong>{{ u.login }}</strong></td>
-            <td><span class="badge-rol">{{ tradRol(u.rol_id) }}</span></td>
-            <td>{{ u.ref_identidad_fk }}</td>
-            <td>{{ u.estado_id == '1' ? '🟢 Activo' : '🔴 Bloqueado' }}</td>
-            <td class="fecha">{{ formatearFecha(u.ultimo_acceso) }}</td>
-            <td>
-              <button @click="eliminarUsuario(u.login)" class="btn-borrar-tabla">Eliminar</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>Login</th>
+          <th>Rol</th>
+          <th>ID Referencia</th>
+          <th>Estado</th>
+          <th>Último acceso</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="usuario in usuarios" :key="usuario.login">
+          <td>{{ usuario.login }}</td>
+          <td>{{ nombreRol(usuario.rol_id) }}</td>
+          <td>{{ usuario.ref_identidad_fk }}</td>
+          <td>
+             <span v-if="usuario.estado_id === 'Act'">🟢 Activo</span>
+             <span v-else-if="usuario.estado_id === 'Bloq'">🔴 Bloqueado</span>
+             <span v-else>⚪ {{ usuario.estado_id }}</span>
+          </td>
+          <td>{{ formatearFecha(usuario.ultimo_acceso) }}</td>
+          <td>
+            <button @click="eliminar(usuario.login)" style="color: red;">Eliminar</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
@@ -69,83 +58,84 @@
 export default {
   data() {
     return {
-      usuarios: [],
-      mostrarForm: false,
-      url: 'http://100.52.46.68:3000/usuarios',
-      nuevoUsuario: {
-        login: '',
-        password_hash: '',
-        rol_id: '',
-        ref_identidad_fk: '',
-        estado_id: '1'
+      url: 'http://100.27.173.196:3000/usuarios',
+      zusuario: 'acuesta',
+      usuarios: [],             
+      mostrarFormulario: false,
+      form: {
+        login: '', password_hash: '',
+        rol_id: '', ref_identidad_fk: '',
+        estado_id: 'Act'
       }
     }
   },
-  mounted() { this.cargarUsuarios(); },
-  methods: {
-    async cargarUsuarios() {
-      try {
-        const res = await fetch(this.url);
-        this.usuarios = await res.json();
-      } catch (e) { console.error("Error al cargar usuarios"); }
-    },
-    async guardarUsuario() {
-      const objetoEnvio = {
-        login: this.nuevoUsuario.login,
-        password_hash: this.nuevoUsuario.password_hash,
-        rol_id: this.nuevoUsuario.rol_id.toString(),
-        ref_identidad_fk: this.nuevoUsuario.ref_identidad_fk.toString(),
-        estado_id: "1",
-        ultimo_acceso: new Date().toISOString()
-      };
 
+  mounted() {
+    this.cargar()
+  },
+
+  methods: {
+    async cargar() {
       try {
-        const res = await fetch(this.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(objetoEnvio)
-        });
-        if (res.ok) {
-          this.mostrarForm = false;
-          this.nuevoUsuario = { login: '', password_hash: '', rol_id: '', ref_identidad_fk: '', estado_id: '1' };
-          this.cargarUsuarios();
-        }
-      } catch (e) { console.error("Error al crear usuario"); }
-    },
-    async eliminarUsuario(login) {
-      if (confirm(`¿Eliminar al usuario ${login}?`)) {
-        await fetch(`${this.url}/${login}`, { method: 'DELETE' });
-        this.cargarUsuarios();
+        let res = await fetch(`${this.url}?zusuario=${this.zusuario}`)
+        this.usuarios = await res.json()
+      } catch (e) {
+        console.error('Error al cargar usuarios')
       }
     },
-    tradRol(id) {
-      const roles = { '1': 'Admin', '2': 'Profesor', '3': 'Alumno', '4': 'TIC' };
-      return roles[id] || 'User';
+
+    async guardar() {
+      let payload = {
+        login: this.form.login,
+        password_hash: this.form.password_hash,
+        rol_id: this.form.rol_id,
+        ref_identidad_fk: this.form.ref_identidad_fk,
+        estado_id: this.form.estado_id,
+        ultimo_acceso: new Date().toISOString(),
+        zusuario: this.zusuario
+      }
+
+      try {
+        let res = await fetch(this.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        if (res.ok) {
+          this.mostrarFormulario = false
+          this.form = { login: '', password_hash: '', rol_id: '', ref_identidad_fk: '', estado_id: 'Act' }
+          this.cargar()
+        }
+      } catch (e) {
+        console.error('Error al crear usuario')
+      }
     },
-    formatearFecha(f) {
-      if (!f) return 'Nunca';
-      return new Date(f).toLocaleDateString();
+
+    async eliminar(login) {
+      if (!confirm(`¿Eliminar al usuario ${login}?`)) return
+      await fetch(`${this.url}/${login}?zusuario=${this.zusuario}`, { method: 'DELETE' })
+      this.cargar()
+    },
+
+    nombreRol(id) {
+      const roles = { 'Admin': 'Admin', 'Prof': 'Profesor', 'Alum': 'Alumno', 'TIC': 'TIC' }
+      return roles[id] || id
+    },
+
+    formatearFecha(fecha) {
+      if (!fecha) return 'Nunca'
+      return new Date(fecha).toLocaleDateString()
     }
   }
 }
 </script>
 
 <style scoped>
-.gestion-container { padding: 20px; }
-.header-seccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-.formulario-card { background: #fff; padding: 20px; border: 1px solid #ddd; margin-bottom: 25px; max-width: 550px; }
-.fila-form { display: flex; gap: 10px; margin-bottom: 10px; }
-.grupo-input { flex: 1; display: flex; flex-direction: column; }
-.grupo-input label { font-size: 0.75rem; font-weight: bold; margin-bottom: 3px; }
-.grupo-input input { padding: 8px; border: 1px solid #ccc; border-radius: 3px; }
-.btn-principal, .btn-guardar { background: #000; color: #fff; border: none; padding: 10px 15px; cursor: pointer; }
-.btn-guardar { width: 100%; margin-top: 10px; }
-
-.tabla-contenedor { background: #fff; border: 1px solid #eee; border-radius: 5px; }
-.tabla-minimal { width: 100%; border-collapse: collapse; }
-.tabla-minimal th { background: #f4f4f4; padding: 12px; text-align: left; font-size: 0.8rem; color: #666; }
-.tabla-minimal td { padding: 12px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
-.badge-rol { background: #333; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; }
-.fecha { color: #888; font-size: 0.75rem; }
-.btn-borrar-tabla { background: none; border: 1px solid #ff4444; color: #ff4444; padding: 3px 7px; cursor: pointer; border-radius: 3px; }
+.cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.formulario { background: #f9f9f9; padding: 15px; border: 1px solid #ccc; margin-bottom: 20px; max-width: 500px; }
+input, select { display: block; width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; }
+button { padding: 8px 12px; cursor: pointer; margin-top: 5px; }
+.tabla { width: 100%; border-collapse: collapse; margin-top: 15px; }
+.tabla th { background: #f4f4f4; padding: 10px; text-align: left; border-bottom: 2px solid #ddd; font-size: 13px; }
+.tabla td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
 </style>

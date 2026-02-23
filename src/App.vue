@@ -1,194 +1,119 @@
 <template>
   <div id="app">
-    <header class="barra-superior">
-      <h1>Escarlatti-Gest</h1>
-      <div v-if="sesion" class="info-usuario">
-        <span><strong>{{ sesion.login }}</strong> ({{ nombreRol }})</span>
-        <button @click="cerrarSesion" class="btn-salir">Cerrar sesión</button>
+    <header v-if="usuarioActivo" class="navbar-pro">
+      <div class="logo">Escarlatti-Gestión</div>
+      <div class="user-info">
+        <span class="badge">{{ usuarioActivo.rol_id }}</span>
+        <span class="user-name">Hola, <strong>{{ usuarioActivo.login }}</strong></span>
+        <button @click="cerrarSesion" class="btn-salir">Cerrar Sesión</button>
       </div>
     </header>
 
-    <Login v-if="!sesion" @logueado="iniciarSesion" />
+    <LoginComponent v-if="!usuarioActivo" @logueado="iniciarSesion" />
 
-    <div v-else class="contenedor-principal">
-      <nav class="menu-lateral">
-        <button @click="vista = 'inicio'" :class="{ activo: vista === 'inicio' }">Inicio</button>
-        
-        <div class="seccion-menu">ACADÉMICO</div>
-        <button v-if="['1', '2', '4'].includes(sesion.rol_id.toString())" 
-                @click="vista = 'alumnos'" 
-                :class="{ activo: vista === 'alumnos' }">Alumnos</button>
-        <button v-if="['1', '2', '4'].includes(sesion.rol_id.toString())" 
-                @click="vista = 'cursos'" 
-                :class="{ activo: vista === 'cursos' }">Cursos</button>
-        
-        <div v-if="['1', '4'].includes(sesion.rol_id.toString())" class="seccion-menu">CONFIGURACIÓN</div>
-        <template v-if="['1', '4'].includes(sesion.rol_id.toString())">
-          <button @click="vista = 'profesores'" :class="{ activo: vista === 'profesores' }">Profesores</button>
-          <button @click="vista = 'departamentos'" :class="{ activo: vista === 'departamentos' }">Departamentos</button>
-          <button @click="vista = 'espacios'" :class="{ activo: vista === 'espacios' }">Espacios</button>
-          <button @click="vista = 'etapas'" :class="{ activo: vista === 'etapas' }">Etapas</button>
-          <button @click="vista = 'roles'" :class="{ activo: vista === 'roles' }">Roles</button>
-        </template>
+    <div v-else class="main-layout">
+      <aside class="sidebar">
+        <p class="menu-label">ACADÉMICO</p>
+        <button @click="pagina = 'alumnos'" :class="{active: pagina === 'alumnos'}">Alumnos</button>
+        <button @click="pagina = 'profesores'" :class="{active: pagina === 'profesores'}">Profesores</button>
+        <button @click="pagina = 'cursos'" :class="{active: pagina === 'cursos'}">Cursos</button>
 
-        <div v-if="sesion.rol_id == '1'" class="seccion-menu">SISTEMA</div>
-        <button v-if="sesion.rol_id == '1'" 
-                @click="vista = 'usuarios'" 
-                :class="{ activo: vista === 'usuarios' }">Usuarios</button>
-      </nav>
+        <p class="menu-label">ORGANIZACIÓN</p>
+        <button @click="pagina = 'departamentos'" :class="{active: pagina === 'departamentos'}">Departamentos</button>
+        <button @click="pagina = 'espacios'" :class="{active: pagina === 'espacios'}">Espacios</button>
+        <button @click="pagina = 'etapas'" :class="{active: pagina === 'etapas'}">Etapas</button>
+        <button @click="pagina = 'turnos'" :class="{active: pagina === 'turnos'}">Turnos</button>
 
-      <main class="contenido">
-        <div v-if="vista === 'inicio'" class="bienvenida">
-          <h2>Panel de Gestión Central</h2>
-          <p>Bienvenido, {{ sesion.login }}. Utiliza el menú lateral para gestionar los recursos del centro.</p>
-          <div class="status-box">
-            Sesión iniciada como: <strong>{{ nombreRol }}</strong>
-          </div>
+        <p class="menu-label">SEGURIDAD</p>
+        <button @click="pagina = 'usuarios'" :class="{active: pagina === 'usuarios'}">Usuarios</button>
+        <button @click="pagina = 'roles'" :class="{active: pagina === 'roles'}">Roles</button>
+      </aside>
+
+      <main class="content-area">
+        <div v-if="pagina === 'inicio'" class="welcome-card">
+          <h1>Panel de Administración</h1>
+          <p>Bienvenido al sistema de gestión. Selecciona una opción del menú para administrar la base de datos.</p>
         </div>
-        
-        <Alumnos v-if="vista === 'alumnos'" />
-        <Profesores v-if="vista === 'profesores'" />
-        <Cursos v-if="vista === 'cursos'" />
-        <Departamentos v-if="vista === 'departamentos'" />
-        <Espacios v-if="vista === 'espacios'" />
-        <Etapas v-if="vista === 'etapas'" />
-        <Roles v-if="vista === 'roles'" />
-        <Usuarios v-if="vista === 'usuarios'" />
+
+        <AlumnosComponent v-if="pagina === 'alumnos'" />
+        <ProfesoresComponent v-if="pagina === 'profesores'" />
+        <CursosComponent v-if="pagina === 'cursos'" />
+        <DepartamentosComponent v-if="pagina === 'departamentos'" />
+        <EspaciosComponent v-if="pagina === 'espacios'" />
+        <EtapasComponent v-if="pagina === 'etapas'" />
+        <TurnosComponent v-if="pagina === 'turnos'" />
+        <UsuariosComponent v-if="pagina === 'usuarios'" />
+        <RolesComponent v-if="pagina === 'roles'" />
       </main>
     </div>
   </div>
 </template>
 
 <script>
-import Login from './components/LoginComponent.vue'
-import Alumnos from './components/AlumnosComponent.vue'
-import Profesores from './components/ProfesoresComponent.vue'
-import Cursos from './components/CursosComponent.vue'
-import Departamentos from './components/DepartamentosComponent.vue'
-import Espacios from './components/EspaciosComponent.vue'
-import Etapas from './components/EtapasComponent.vue'
-import Roles from './components/RolesComponent.vue'
-import Usuarios from './components/UsuariosComponent.vue'
+// 1. IMPORTACIÓN DE TODOS LOS COMPONENTES
+import LoginComponent from './components/LoginComponent.vue';
+import AlumnosComponent from './components/AlumnosComponent.vue';
+import ProfesoresComponent from './components/ProfesoresComponent.vue';
+import CursosComponent from './components/CursosComponent.vue';
+import DepartamentosComponent from './components/DepartamentosComponent.vue';
+import EspaciosComponent from './components/EspaciosComponent.vue';
+import EtapasComponent from './components/EtapasComponent.vue';
+import TurnosComponent from './components/TurnosComponent.vue';
+import UsuariosComponent from './components/UsuariosComponent.vue';
+import RolesComponent from './components/RolesComponent.vue';
 
 export default {
-  name: 'App',
+  // 2. REGISTRO DE COMPONENTES
   components: { 
-    Login, Alumnos, Profesores, Cursos, 
-    Departamentos, Espacios, Etapas, Roles, Usuarios 
+    LoginComponent, AlumnosComponent, ProfesoresComponent, 
+    CursosComponent, DepartamentosComponent, EspaciosComponent,
+    EtapasComponent, TurnosComponent, UsuariosComponent, RolesComponent
   },
   data() {
     return {
-      sesion: null,
-      vista: 'inicio'
-    }
-  },
-  computed: {
-    nombreRol() {
-      if (!this.sesion) return '';
-      const roles = { '1': 'Administrador', '2': 'Profesor', '3': 'Alumno', '4': 'TIC' };
-      return roles[this.sesion.rol_id.toString()] || 'Usuario';
+      usuarioActivo: null, // Guardamos la info del usuario logueado
+      pagina: 'inicio'     // Controlamos qué componente se muestra
     }
   },
   methods: {
-    iniciarSesion(usuario) {
-      this.sesion = usuario;
-      this.vista = 'inicio';
+    iniciarSesion(u) {
+      this.usuarioActivo = u;
+      this.pagina = 'inicio';
     },
     cerrarSesion() {
-      this.sesion = null;
-      this.vista = 'inicio';
+      this.usuarioActivo = null;
+      this.pagina = 'inicio';
     }
   }
 }
 </script>
 
 <style>
-body {
-  margin: 0;
-  font-family: 'Segoe UI', Arial, sans-serif;
-  background-color: #f7f7f7;
-  color: #222;
-}
+/* --- CSS GLOBAL Y ESTRUCTURA --- */
+body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #f4f7f6; color: #333; }
 
-.barra-superior {
-  background-color: #000;
-  color: #fff;
-  padding: 10px 30px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+/* Barra Superior */
+.navbar-pro { background: #1a1a1a; color: white; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+.logo { font-size: 1.4rem; font-weight: bold; letter-spacing: 1px; }
+.user-info { display: flex; align-items: center; gap: 15px; }
+.badge { background: #007bff; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
 
-.btn-salir {
-  background: #333;
-  color: #fff;
-  border: 1px solid #555;
-  padding: 5px 12px;
-  cursor: pointer;
-  margin-left: 15px;
-}
+/* Layout Principal */
+.main-layout { display: flex; height: calc(100vh - 65px); }
 
-.btn-salir:hover { background: #ff4444; border-color: #ff4444; }
+/* Sidebar (Menú Lateral) */
+.sidebar { width: 250px; background: white; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; }
+.menu-label { font-size: 0.7rem; font-weight: bold; color: #999; margin: 25px 0 10px 5px; letter-spacing: 1px; }
+.sidebar button { width: 100%; text-align: left; padding: 12px 15px; border: none; background: none; border-radius: 8px; cursor: pointer; margin-bottom: 4px; transition: all 0.2s; font-size: 0.9rem; color: #555; }
+.sidebar button:hover:not(.active) { background: #f0f4f8; color: #007bff; }
+.sidebar button.active { background: #007bff; color: white; font-weight: bold; box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3); }
 
-.contenedor-principal {
-  display: flex;
-  height: calc(100vh - 50px);
-}
+/* Contenido Principal */
+.content-area { flex: 1; padding: 40px; overflow-y: auto; }
+.welcome-card { background: white; padding: 50px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; max-width: 700px; margin: 0 auto; }
+.welcome-card h1 { color: #1a1a1a; margin-bottom: 15px; }
 
-.menu-lateral {
-  width: 220px;
-  background-color: #fff;
-  border-right: 1px solid #ddd;
-  overflow-y: auto;
-}
-
-.seccion-menu {
-  padding: 15px 20px 5px;
-  font-size: 0.65rem;
-  font-weight: 800;
-  color: #999;
-  letter-spacing: 1px;
-}
-
-.menu-lateral button {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 12px 25px;
-  text-align: left;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: #444;
-}
-
-.menu-lateral button:hover { background-color: #f5f5f5; }
-.menu-lateral button.activo {
-  background-color: #eee;
-  font-weight: bold;
-  border-left: 5px solid #000;
-  color: #000;
-}
-
-.contenido {
-  flex: 1;
-  padding: 30px;
-  background-color: #fff;
-  overflow-y: auto;
-}
-
-.bienvenida {
-  text-align: center;
-  margin-top: 60px;
-}
-
-.status-box {
-  display: inline-block;
-  margin-top: 20px;
-  padding: 15px 25px;
-  background: #f9f9f9;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  color: #666;
-}
+/* Botón Salir */
+.btn-salir { background: #ff4d4f; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
+.btn-salir:hover { background: #d9363e; }
 </style>

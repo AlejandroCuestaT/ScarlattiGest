@@ -1,37 +1,38 @@
 <template>
-  <div>
-    <div class="titulo-seccion">
-      <h2>Listado de Profesores</h2>
-      <button @click="abrirForm = !abrirForm">
-        {{ abrirForm ? 'Cerrar formulario' : 'Nuevo Profesor' }}
-      </button>
-    </div>
+  <div class="panel-gestion">
+    <h2>Gestión de Profesores</h2>
 
-    <div v-if="mensaje" :class="['alerta', claseMensaje]">{{ mensaje }}</div>
-
-    <div v-if="abrirForm" class="contenedor-form">
-      <h3>Datos del nuevo profesor</h3>
-      <form @submit.prevent="enviar">
-        <input v-model="form.dni_nie" placeholder="DNI o NIE" required>
-        <input v-model="form.nombre" placeholder="Nombre" required>
-        <input v-model="form.apellidos" placeholder="Apellidos" required>
-        <input v-model="form.correo_institucional" placeholder="Email institucional" type="email" required>
-        <input v-model="form.departamento_id" placeholder="ID Departamento" required>
-        <input v-model="form.rol_id" placeholder="ID Rol" required>
-        <input v-model="form.password_hash" placeholder="Contraseña" type="password" required>
-        <button type="submit" class="btn-guardar">Guardar Profesor</button>
-      </form>
-    </div>
-
-    <button @click="obtenerDatos" class="btn-recargar">Actualizar lista</button>
-
-    <div class="lista">
-      <div v-for="p in lista" :key="p.dni_nie" class="ficha">
-        <strong>{{ p.nombre }} {{ p.apellidos }}</strong>
-        <p>DNI: {{ p.dni_nie }}</p>
-        <p>Email: {{ p.correo_institucional }}</p>
-        <p>Dpto ID: {{ p.departamento_id }}</p>
+    <div class="caja-formulario">
+      <h4>Registrar Nuevo Profesor</h4>
+      <div class="fila-input">
+        <input v-model="nuevo.dni_nie" placeholder="DNI/NIE">
+        <input v-model="nuevo.nombre" placeholder="Nombre">
+        <input v-model="nuevo.apellidos" placeholder="Apellidos">
+        <button @click="crear" class="btn-azul">Guardar</button>
       </div>
+    </div>
+
+    <div class="listado">
+      <table class="tabla-datos">
+        <thead>
+          <tr>
+            <th>DNI</th>
+            <th>Nombre</th>
+            <th>Apellidos</th>
+            <th class="texto-centro">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="p in profesores" :key="p.dni_nie">
+            <td>{{ p.dni_nie }}</td>
+            <td>{{ p.nombre }}</td>
+            <td>{{ p.apellidos }}</td>
+            <td class="texto-centro">
+              <button @click="eliminar(p.dni_nie)" class="btn-rojo">Eliminar</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
@@ -40,62 +41,49 @@
 export default {
   data() {
     return {
-      api: 'http://100.52.46.68:3000/profesores',
-      lista: [],
-      abrirForm: false,
-      mensaje: '',
-      claseMensaje: '',
-      form: { dni_nie: '', nombre: '', apellidos: '', correo_institucional: '', departamento_id: '', rol_id: '', password_hash: '' }
+      profesores: [],
+      nuevo: { dni_nie: '', nombre: '', apellidos: '' },
+      url: 'http://100.27.173.196:3000/profesores',
+      zusuario: 'acuesta'
     }
   },
-  mounted() {
-    this.obtenerDatos();
-  },
+  mounted() { this.obtenerTodos(); },
   methods: {
-    async obtenerDatos() {
-      try {
-        let res = await fetch(this.api);
-        this.lista = await res.json();
-      } catch (e) {
-        this.notificar('Error al cargar profesores', 'error');
+    async obtenerTodos() {
+      const res = await fetch(`${this.url}?zusuario=${this.zusuario}`);
+      this.profesores = await res.json();
+    },
+    async crear() {
+      if (!this.nuevo.dni_nie) return alert("El DNI es obligatorio");
+      const res = await fetch(`${this.url}?zusuario=${this.zusuario}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.nuevo)
+      });
+      if (res.ok) {
+        this.obtenerTodos();
+        this.nuevo = { dni_nie: '', nombre: '', apellidos: '' };
       }
     },
-    async enviar() {
-      try {
-        let res = await fetch(this.api, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.form)
-        });
-        if (res.ok) {
-          this.notificar('Profesor registrado correctamente', 'exito');
-          this.abrirForm = false;
-          this.form = { dni_nie: '', nombre: '', apellidos: '', correo_institucional: '', departamento_id: '', rol_id: '', password_hash: '' };
-          this.obtenerDatos();
-        }
-      } catch (e) {
-        this.notificar('Fallo al guardar profesor', 'error');
-      }
-    },
-    notificar(texto, tipo) {
-      this.mensaje = texto;
-      this.claseMensaje = tipo;
-      setTimeout(() => this.mensaje = '', 3000);
+    async eliminar(dni) {
+      if (!confirm('¿Seguro que quieres borrar este registro?')) return;
+      const res = await fetch(`${this.url}/${dni}?zusuario=${this.zusuario}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) this.obtenerTodos();
     }
   }
 }
 </script>
 
 <style scoped>
-.titulo-seccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.contenedor-form { background: #fff; padding: 15px; border: 1px solid #ccc; margin-bottom: 20px; }
-input { display: block; width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
-.btn-guardar { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; cursor: pointer; }
-.btn-recargar { margin: 10px 0; padding: 5px 10px; cursor: pointer; }
-.alerta { padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; }
-.exito { background-color: #d4edda; color: #155724; }
-.error { background-color: #f8d7da; color: #721c24; }
-.lista { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.ficha { background: #fff; padding: 10px; border: 1px solid #ccc; border-top: 3px solid #007bff; }
-.ficha p { margin: 5px 0; font-size: 13px; }
+.panel-gestion { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+.caja-formulario { background: #f8f9fa; padding: 20px; border-radius: 6px; margin-bottom: 30px; }
+.fila-input { display: flex; gap: 10px; margin-top: 10px; }
+.fila-input input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+.tabla-datos { width: 100%; border-collapse: collapse; }
+.tabla-datos th, .tabla-datos td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+.btn-azul { background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+.btn-rojo { background: #fce8e6; color: #d93025; border: 1px solid #f5c2c7; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.texto-centro { text-align: center; }
 </style>

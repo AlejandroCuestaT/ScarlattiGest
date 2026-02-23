@@ -1,33 +1,27 @@
 <template>
-  <div class="gestion-container">
-    <div class="header-seccion">
-      <h2>Niveles Educativos (Etapas)</h2>
-      <button @click="mostrarForm = !mostrarForm" class="btn-principal">
-        {{ mostrarForm ? 'Cerrar' : 'Nueva Etapa' }}
+  <div>
+    <div class="cabecera">
+      <h2>Etapas Educativas</h2>
+      <button @click="mostrarFormulario = !mostrarFormulario">
+        {{ mostrarFormulario ? 'Cerrar' : 'Nueva Etapa' }}
       </button>
     </div>
 
-    <div v-if="mostrarForm" class="formulario-card">
-      <h3>Registrar Etapa</h3>
-      <form @submit.prevent="guardarEtapa">
-        <div class="grupo-input">
-          <label>Nombre:</label>
-          <input v-model="nuevaEtapa.nombre" placeholder="Ej: Bachillerato" required>
-        </div>
-        <div class="grupo-input">
-          <label>Descripción:</label>
-          <input v-model="nuevaEtapa.descripcion" placeholder="Ej: Bachillerato de Ciencias" required>
-        </div>
-        <button type="submit" class="btn-guardar">Guardar Etapa</button>
+    <div v-if="mostrarFormulario" class="formulario">
+      <h3>Añadir etapa</h3>
+      <form @submit.prevent="guardar">
+        <input v-model="form.nombre"      placeholder="Nombre (Ej: Bachillerato)" required>
+        <input v-model="form.descripcion" placeholder="Descripción" required>
+        <button type="submit">Guardar</button>
       </form>
     </div>
 
-    <div class="grid-listado">
+    <div class="lista">
       <div v-for="etapa in etapas" :key="etapa.id" class="tarjeta">
-        <span class="badge-id">ID: {{ etapa.id || 'S/N' }}</span>
+        <small>ID: {{ etapa.id }}</small>
         <h4>{{ etapa.nombre }}</h4>
         <p>{{ etapa.descripcion }}</p>
-        <button @click="eliminarEtapa(etapa.id)" class="btn-eliminar">Eliminar</button>
+        <button @click="eliminar(etapa.id)" style="color: red;">Eliminar</button>
       </div>
     </div>
   </div>
@@ -37,82 +31,67 @@
 export default {
   data() {
     return {
-      etapas: [],
-      mostrarForm: false,
-      url: 'http://100.52.46.68:3000/etapas',
-      nuevaEtapa: {
-        nombre: '',
-        descripcion: ''
-      }
+      url: 'http://100.27.173.196:3000/etapas',
+      zusuario: 'acuesta',
+      etapas: [],              
+      mostrarFormulario: false,
+      form: { nombre: '', descripcion: '' }
     }
   },
+
   mounted() {
-    this.cargarEtapas();
+    this.cargar()
   },
+
   methods: {
-    async cargarEtapas() {
+    async cargar() {
       try {
-        const res = await fetch(this.url);
-        this.etapas = await res.json();
+        let res = await fetch(`${this.url}?zusuario=${this.zusuario}`)
+        this.etapas = await res.json()
       } catch (e) {
-        console.error("Error al cargar etapas");
+        console.error('Error al cargar etapas')
       }
     },
-    async guardarEtapa() {
-      const idsNumericos = this.etapas
-        .map(e => parseInt(e.id))
-        .filter(id => !isNaN(id));
-      
-      const nextId = idsNumericos.length > 0 ? Math.max(...idsNumericos) + 1 : 1;
 
-      const objetoEnvio = {
-        id: nextId.toString(),
-        nombre: this.nuevaEtapa.nombre,
-        descripcion: this.nuevaEtapa.descripcion
-      };
+    async guardar() {
+      let ids = this.etapas.map(e => parseInt(e.id)).filter(id => !isNaN(id))
+      let siguienteId = ids.length > 0 ? Math.max(...ids) + 1 : 1
+
+      let payload = { ...this.form, id: siguienteId.toString(), zusuario: this.zusuario }
 
       try {
-        const res = await fetch(this.url, {
+        let res = await fetch(this.url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(objetoEnvio)
-        });
-
+          body: JSON.stringify(payload)
+        })
         if (res.ok) {
-          this.mostrarForm = false;
-          this.nuevaEtapa = { nombre: '', descripcion: '' };
-          this.cargarEtapas();
+          this.mostrarFormulario = false
+          this.form = { nombre: '', descripcion: '' }
+          this.cargar()
         }
       } catch (e) {
-        console.error("Error al guardar");
+        console.error('Error al guardar')
       }
     },
-    async eliminarEtapa(id) {
-      if (confirm("¿Eliminar etapa?")) {
-        try {
-          await fetch(`${this.url}/${id}`, { method: 'DELETE' });
-          this.cargarEtapas();
-        } catch (e) {
-          console.error("Error al eliminar");
-        }
-      }
+
+    async eliminar(id) {
+      if (!confirm('¿Eliminar esta etapa?')) return
+      await fetch(`${this.url}/${id}?zusuario=${this.zusuario}`, { method: 'DELETE' })
+      this.cargar()
     }
   }
 }
 </script>
 
 <style scoped>
-.gestion-container { padding: 20px; }
-.header-seccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-.formulario-card { background: #fff; padding: 20px; border: 1px solid #ccc; margin-bottom: 25px; max-width: 400px; }
-.grupo-input { margin-bottom: 12px; }
-.grupo-input label { display: block; font-weight: bold; font-size: 0.85rem; margin-bottom: 4px; }
-.grupo-input input { width: 100%; padding: 8px; border: 1px solid #ccc; box-sizing: border-box; }
-.btn-principal { background: #000; color: #fff; border: none; padding: 10px 15px; cursor: pointer; }
-.btn-guardar { width: 100%; background: #000; color: white; border: none; padding: 10px; cursor: pointer; }
-.grid-listado { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
-.tarjeta { border: 1px solid #ddd; padding: 15px; background: #fff; position: relative; text-align: center; }
-.badge-id { background: #eee; color: #666; padding: 2px 6px; font-size: 0.7rem; border-radius: 4px; position: absolute; top: 10px; left: 10px; }
-.btn-eliminar { background: none; border: 1px solid #ff4444; color: #ff4444; padding: 4px; width: 100%; cursor: pointer; margin-top: 15px; }
-.btn-eliminar:hover { background: #ff4444; color: white; }
+.cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.formulario { background: #f9f9f9; padding: 15px; border: 1px solid #ccc; margin-bottom: 20px; max-width: 400px; }
+input { display: block; width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; }
+button { padding: 8px 12px; cursor: pointer; margin-top: 5px; }
+.lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; }
+.tarjeta { background: #fff; border: 1px solid #ddd; padding: 15px; text-align: center; }
+.tarjeta small { color: #999; font-size: 12px; }
+.tarjeta h4 { margin: 8px 0 5px; }
+.tarjeta p { margin: 3px 0; font-size: 13px; color: #555; }
 </style>
