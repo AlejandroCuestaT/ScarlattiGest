@@ -1,30 +1,36 @@
 <template>
-  <div>
+  <div class="roles-panel">
     <div class="cabecera">
-      <h2>Roles</h2>
-      <button @click="mostrarFormulario = !mostrarFormulario">
-        {{ mostrarFormulario ? 'Cerrar' : 'Nuevo Rol' }}
+      <h2>🛡️ Gestión de Roles</h2>
+      <button @click="mostrarFormulario = !mostrarFormulario" class="btn-main">
+        {{ mostrarFormulario ? '✖️ Cancelar' : '➕ Nuevo Rol' }}
       </button>
     </div>
 
-    <div v-if="mostrarFormulario" class="formulario">
-      <h3>Añadir rol</h3>
+    <div v-if="mostrarFormulario" class="formulario-card">
+      <h3>Registrar Perfil de Acceso</h3>
       <form @submit.prevent="guardar">
-        <input v-model="form.id"          placeholder="ID del Rol (Ej: Admin, Prof)" required>
-        <input v-model="form.nombre"      placeholder="Nombre (Ej: Coordinador)" required>
-        <input v-model.number="form.nivel_privilegio" type="number" min="1" max="10" placeholder="Nivel de privilegio (1-10)" required>
-        <input v-model="form.descripcion"     placeholder="Descripción del rol" required>
-        <button type="submit">Guardar</button>
+        <div class="grid-inputs">
+          <input v-model="form.id" placeholder="ID técnico (Ej: Admin_a, Prof_a)" required>
+          <input v-model="form.nombre" placeholder="Nombre público (Ej: Administrador)" required>
+          <input v-model.number="form.nivel_privilegio" type="number" min="1" max="10" placeholder="Nivel (1-10)" required>
+          <input v-model="form.descripcion" placeholder="Descripción breve" required>
+        </div>
+        <button type="submit" class="btn-save">💾 Guardar Rol</button>
       </form>
     </div>
 
-    <div class="lista">
-      <div v-for="rol in roles" :key="rol.id" class="tarjeta">
-        <small>ID: {{ rol.id }}</small>
+    <div class="lista-grid">
+      <div v-for="rol in roles" :key="rol.id" class="tarjeta-rol">
+        <div class="rol-header">
+          <span class="badge-nivel">Nivel {{ rol.nivel_privilegio }}</span>
+          <small class="id-tag">#{{ rol.id }}</small>
+        </div>
         <h4>{{ rol.nombre }}</h4>
-        <p>Nivel: {{ rol.nivel_privilegio }}</p>
         <p>{{ rol.descripcion }}</p>
-        <button @click="eliminar(rol.id)" style="color: red;">Eliminar</button>
+        <div class="acciones">
+          <button @click="eliminar(rol.id)" class="btn-del">🗑️ Eliminar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -32,67 +38,98 @@
 
 <script>
 export default {
+  name: 'RolesComponent',
   data() {
     return {
-      url: 'http://100.27.173.196:3000/roles',
+      // IP corregida para conectar con la base de datos real
+      url: 'http://44.207.19.239:3000/roles',
       zusuario: 'acuesta',
       roles: [],                
       mostrarFormulario: false,
       form: { id: '', nombre: '', nivel_privilegio: 1, descripcion: '' }
     }
   },
-
   mounted() {
-    this.cargar()
+    this.cargar();
   },
-
   methods: {
     async cargar() {
       try {
-        let res = await fetch(`${this.url}?zusuario=${this.zusuario}`)
-        this.roles = await res.json()
+        // Añadimos el parámetro de auditoría obligatorio
+        const res = await fetch(`${this.url}?zusuario=${this.zusuario}`);
+        if (!res.ok) throw new Error("Error en servidor");
+        this.roles = await res.json();
       } catch (e) {
-        console.error('Error al cargar roles')
+        console.error('Error al conectar con la API de roles:', e);
       }
     },
-
     async guardar() {
-      // Como los roles ahora son strings (Admin, Prof, etc), lo cogemos del form
-      let payload = { ...this.form, zusuario: this.zusuario }
+      // Validación básica para evitar registros corruptos
+      if (!this.form.id.trim()) return alert("El ID del rol es obligatorio");
+
+      const payload = { 
+        ...this.form, 
+        zusuario: this.zusuario,
+        zfecha: new Date().toISOString()
+      };
 
       try {
-        let res = await fetch(this.url, {
+        const res = await fetch(`${this.url}?zusuario=${this.zusuario}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        })
+        });
+
         if (res.ok) {
-          this.mostrarFormulario = false
-          this.form = { id: '', nombre: '', nivel_privilegio: 1, descripcion: '' }
-          this.cargar()
+          this.mostrarFormulario = false;
+          this.form = { id: '', nombre: '', nivel_privilegio: 1, descripcion: '' };
+          this.cargar();
+        } else {
+          alert("Error: Verifica que el ID no esté duplicado.");
         }
       } catch (e) {
-        console.error('Error al guardar')
+        console.error('Fallo de red al guardar:', e);
       }
     },
-
     async eliminar(id) {
-      if (!confirm('¿Eliminar este rol? Puede afectar a usuarios asociados.')) return
-      await fetch(`${this.url}/${id}?zusuario=${this.zusuario}`, { method: 'DELETE' })
-      this.cargar()
+      if (!confirm('¿Eliminar este rol? Podría afectar a los usuarios vinculados.')) return;
+
+      // Construcción de URL dinámica: /roles/ID?zusuario=USUARIO
+      const urlDelete = `${this.url}/${id}?zusuario=${this.zusuario}`;
+
+      try {
+        const res = await fetch(urlDelete, { method: 'DELETE' });
+        if (res.ok) {
+          this.cargar();
+        } else {
+          // Captura el 404 mostrado en consola
+          alert("No se pudo eliminar. El rol no existe o está protegido.");
+        }
+      } catch (e) {
+        console.error('Error al eliminar:', e);
+      }
     }
   }
 }
 </script>
 
 <style scoped>
-.cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.formulario { background: #f9f9f9; padding: 15px; border: 1px solid #ccc; margin-bottom: 20px; max-width: 450px; }
-input { display: block; width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; }
-button { padding: 8px 12px; cursor: pointer; margin-top: 5px; }
-.lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
-.tarjeta { background: #fff; border: 1px solid #ddd; padding: 15px; }
-.tarjeta small { color: #999; font-size: 12px; }
-.tarjeta h4 { margin: 8px 0 5px; }
-.tarjeta p { margin: 3px 0; font-size: 13px; color: #555; }
+.roles-panel { padding: 25px; background: #f8fafc; min-height: 100vh; }
+.cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+.btn-main { background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+.formulario-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 30px; border: 1px solid #e2e8f0; }
+.grid-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+.grid-inputs input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.btn-save { background: #10b981; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+.lista-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+.tarjeta-rol { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid #6366f1; }
+.rol-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.badge-nivel { background: #e0e7ff; color: #4338ca; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 12px; }
+.id-tag { color: #94a3b8; font-family: monospace; }
+.tarjeta-rol h4 { margin: 10px 0; color: #1e293b; }
+.tarjeta-rol p { font-size: 13px; color: #64748b; margin-bottom: 15px; }
+.acciones { border-top: 1px solid #f1f5f9; padding-top: 12px; text-align: right; }
+.btn-del { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 12px; font-weight: bold; }
 </style>

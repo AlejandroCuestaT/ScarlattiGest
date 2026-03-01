@@ -1,52 +1,49 @@
 <template>
-  <div>
-    <div class="cabecera">
-      <h2>Usuarios</h2>
-      <button @click="mostrarFormulario = !mostrarFormulario">
-        {{ mostrarFormulario ? 'Cerrar' : 'Nuevo Usuario' }}
+  <div class="panel-usuarios">
+    <div class="header-seccion">
+      <h2>🔐 Gestión de Accesos y Usuarios</h2>
+      <button @click="mostrarFormulario = !mostrarFormulario" class="btn-nuevo">
+        {{ mostrarFormulario ? '✖ Cancelar' : '➕ Crear Usuario' }}
       </button>
     </div>
 
-    <div v-if="mostrarFormulario" class="formulario">
-      <h3>Crear usuario</h3>
-      <form @submit.prevent="guardar">
-        <input v-model="form.login"            placeholder="Nombre de usuario" required>
-        <input v-model="form.password_hash"    placeholder="Contraseña" type="password" required>
-        <input v-model="form.rol_id"           placeholder="ID Rol (Admin, Prof, Alum, TIC)" required>
-        <input v-model="form.ref_identidad_fk" placeholder="ID Referencia (DNI del profesor o NIA del alumno)" required>
-        <select v-model="form.estado_id">
-          <option value="Act">Activo</option>
-          <option value="Baj">Baja</option>
-          <option value="Bloq">Bloqueado</option>
-        </select>
-        <button type="submit">Crear Usuario</button>
-      </form>
+    <div v-if="mostrarFormulario" class="card-formulario">
+      <div class="grid-form">
+        <input v-model="nuevo.login" placeholder="Nombre de usuario (Login)">
+        <input v-model="nuevo.password_hash" type="password" placeholder="Contraseña">
+        <input v-model="nuevo.ref_identidad_fk" placeholder="NIA del Alumno o DNI">
+
+        <select v-model="nuevo.rol_id">
+          <option value="" disabled>Seleccionar Rol</option>
+          <option value="Admin_a">Administrador</option>
+          <option value="Prof_a">Profesor</option>
+          <option value="Alum_a">Alumno</option>
+          <option value="Tic_a">Personal TIC</option> </select>
+
+        <button @click="crearUsuario" class="btn-guardar" :disabled="cargando">
+          {{ cargando ? 'Guardando...' : 'Vincular y Crear Acceso' }}
+        </button>
+      </div>
     </div>
 
-    <table class="tabla">
+    <table class="tabla-alumnos">
       <thead>
         <tr>
           <th>Login</th>
           <th>Rol</th>
-          <th>ID Referencia</th>
-          <th>Estado</th>
-          <th>Último acceso</th>
+          <th>ID Identidad</th>
+          <th>Última Conexión</th>
           <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="usuario in usuarios" :key="usuario.login">
-          <td>{{ usuario.login }}</td>
-          <td>{{ nombreRol(usuario.rol_id) }}</td>
-          <td>{{ usuario.ref_identidad_fk }}</td>
+        <tr v-for="u in usuarios" :key="u.login">
+          <td><strong>{{ u.login }}</strong></td>
+          <td><span :class="['tag-rol', getRolClass(u.rol_id)]">{{ u.rol_id }}</span></td>
+          <td><span class="badge-nia">{{ u.ref_identidad_fk }}</span></td>
+          <td>{{ u.ultimo_acceso ? u.ultimo_acceso.split('T')[0] : 'Nunca' }}</td>
           <td>
-             <span v-if="usuario.estado_id === 'Act'">🟢 Activo</span>
-             <span v-else-if="usuario.estado_id === 'Bloq'">🔴 Bloqueado</span>
-             <span v-else>⚪ {{ usuario.estado_id }}</span>
-          </td>
-          <td>{{ formatearFecha(usuario.ultimo_acceso) }}</td>
-          <td>
-            <button @click="eliminar(usuario.login)" style="color: red;">Eliminar</button>
+            <button @click="eliminarUsuario(u.login)" class="btn-eliminar">Eliminar</button>
           </td>
         </tr>
       </tbody>
@@ -56,86 +53,118 @@
 
 <script>
 export default {
+  name: 'UsuariosComponent',
   data() {
     return {
-      url: 'http://100.27.173.196:3000/usuarios',
-      zusuario: 'acuesta',
-      usuarios: [],             
+      usuarios: [],
       mostrarFormulario: false,
-      form: {
-        login: '', password_hash: '',
-        rol_id: '', ref_identidad_fk: '',
-        estado_id: 'Act'
+      cargando: false,
+      apiUrl: "http://44.207.19.239:3000",
+      zusuario: "acuesta",
+      nuevo: {
+        login: '',
+        password_hash: '',
+        rol_id: '',
+        ref_identidad_fk: '',
+        estado_id: 'Act_a'
       }
     }
   },
-
   mounted() {
-    this.cargar()
+    this.cargarUsuarios();
   },
-
   methods: {
-    async cargar() {
+    async cargarUsuarios() {
       try {
-        let res = await fetch(`${this.url}?zusuario=${this.zusuario}`)
-        this.usuarios = await res.json()
+        const res = await fetch(`${this.apiUrl}/usuarios?zusuario=${this.zusuario}`);
+        this.usuarios = await res.json();
       } catch (e) {
-        console.error('Error al cargar usuarios')
+        console.error("Error al cargar usuarios", e);
       }
     },
-
-    async guardar() {
-      let payload = {
-        login: this.form.login,
-        password_hash: this.form.password_hash,
-        rol_id: this.form.rol_id,
-        ref_identidad_fk: this.form.ref_identidad_fk,
-        estado_id: this.form.estado_id,
-        ultimo_acceso: new Date().toISOString(),
-        zusuario: this.zusuario
+    async crearUsuario() {
+      if (!this.nuevo.login || !this.nuevo.password_hash || !this.nuevo.rol_id) {
+        return alert("Por favor, rellena todos los campos obligatorios.");
       }
 
+      this.cargando = true;
+      const payload = {
+        ...this.nuevo,
+        zfecha: new Date().toISOString(),
+        zusuario: this.zusuario
+      };
+
       try {
-        let res = await fetch(this.url, {
+        const res = await fetch(`${this.apiUrl}/usuarios?zusuario=${this.zusuario}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        })
+        });
+
+        const data = await res.json();
+
         if (res.ok) {
-          this.mostrarFormulario = false
-          this.form = { login: '', password_hash: '', rol_id: '', ref_identidad_fk: '', estado_id: 'Act' }
-          this.cargar()
+          alert("Usuario creado con éxito");
+          this.resetForm();
+          this.mostrarFormulario = false;
+          await this.cargarUsuarios();
+        } else {
+          // El error de FK que veías saldrá aquí si el ID es incorrecto
+          alert("Error del servidor: " + (data.error || "No se pudo crear el usuario"));
         }
       } catch (e) {
-        console.error('Error al crear usuario')
+        alert("Error de conexión con la API");
+      } finally {
+        this.cargando = false;
       }
     },
-
-    async eliminar(login) {
-      if (!confirm(`¿Eliminar al usuario ${login}?`)) return
-      await fetch(`${this.url}/${login}?zusuario=${this.zusuario}`, { method: 'DELETE' })
-      this.cargar()
+    async eliminarUsuario(login) {
+      if (!confirm(`¿Estás seguro de que deseas eliminar el acceso de ${login}?`)) return;
+      try {
+        const res = await fetch(`${this.apiUrl}/usuarios/${login}?zusuario=${this.zusuario}`, { 
+          method: 'DELETE' 
+        });
+        if (res.ok) this.cargarUsuarios();
+      } catch (e) {
+        alert("Error al eliminar");
+      }
     },
-
-    nombreRol(id) {
-      const roles = { 'Admin': 'Admin', 'Prof': 'Profesor', 'Alum': 'Alumno', 'TIC': 'TIC' }
-      return roles[id] || id
+    resetForm() {
+      this.nuevo = { login: '', password_hash: '', rol_id: '', ref_identidad_fk: '', estado_id: 'Act_a' };
     },
-
-    formatearFecha(fecha) {
-      if (!fecha) return 'Nunca'
-      return new Date(fecha).toLocaleDateString()
+    getRolClass(rol) {
+      if (rol === 'Admin_a') return 'rol-admin';
+      if (rol === 'Tic_a') return 'rol-tic';
+      if (rol === 'Prof_a') return 'rol-prof';
+      return 'rol-alum';
     }
   }
 }
 </script>
 
 <style scoped>
-.cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.formulario { background: #f9f9f9; padding: 15px; border: 1px solid #ccc; margin-bottom: 20px; max-width: 500px; }
-input, select { display: block; width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; }
-button { padding: 8px 12px; cursor: pointer; margin-top: 5px; }
-.tabla { width: 100%; border-collapse: collapse; margin-top: 15px; }
-.tabla th { background: #f4f4f4; padding: 10px; text-align: left; border-bottom: 2px solid #ddd; font-size: 13px; }
-.tabla td { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+.panel-usuarios { background: #fff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+.header-seccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+.btn-nuevo { background: #1e293b; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+.card-formulario { background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 25px; }
+.grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+.grid-form input, .grid-form select { padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline-color: #3b82f6; }
+.btn-guardar { background: #3b82f6; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; grid-column: 1 / -1; font-weight: bold; }
+.btn-guardar:disabled { background: #94a3b8; cursor: not-allowed; }
+
+.tabla-alumnos { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.tabla-alumnos th { text-align: left; padding: 12px; border-bottom: 2px solid #f1f5f9; color: #64748b; font-size: 14px; }
+.tabla-alumnos td { padding: 15px 12px; border-bottom: 1px solid #f1f5f9; }
+
+.badge-nia { font-family: monospace; background: #f1f5f9; padding: 5px 10px; border-radius: 6px; font-weight: bold; color: #475569; }
+
+/* Estilos de etiquetas de rol */
+.tag-rol { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+.rol-admin { background: #fee2e2; color: #991b1b; }
+.rol-tic { background: #f3e8ff; color: #6b21a8; }
+.rol-prof { background: #dcfce7; color: #166534; }
+.rol-alum { background: #dbeafe; color: #1e40af; }
+
+.btn-eliminar { background: #fee2e2; color: #ef4444; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+.btn-eliminar:hover { background: #ef4444; color: white; }
 </style>

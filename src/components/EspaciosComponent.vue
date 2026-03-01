@@ -18,6 +18,11 @@
         <h2>{{ espacioSeleccionado.nombre }}</h2>
       </div>
 
+      <div class="filtro-fecha">
+        <label><b>Día a consultar/reservar:</b></label>
+        <input type="date" v-model="fechaConsulta" @change="cargarReservas" class="input-fecha">
+      </div>
+
       <table class="tabla-reservas">
         <thead>
           <tr>
@@ -48,16 +53,16 @@
     <div v-if="mostrarModal" class="modal-overlay">
       <div class="modal-content">
         <h3>Confirmar Reserva</h3>
-        <p>Vas a reservar una franja horaria en <b>{{ espacioSeleccionado.nombre }}</b></p>
+        <p>Aula: <b>{{ espacioSeleccionado.nombre }}</b></p>
         
         <div class="form-group">
-          <label>Fecha de la reserva:</label>
-          <input type="date" v-model="nuevaReserva.fecha">
+          <label>Fecha seleccionada:</label>
+          <input type="date" :value="fechaConsulta" disabled class="input-disabled">
         </div>
 
         <div class="form-group">
           <label>Motivo / Asignatura:</label>
-          <input type="text" v-model="nuevaReserva.motivo" placeholder="Ej: Clase de Programación">
+          <input type="text" v-model="motivoReserva" placeholder="Ej: Clase de Piano">
         </div>
 
         <div class="modal-actions">
@@ -75,21 +80,22 @@ export default {
   props: ['usuarioActivo'],
   data() {
     return {
-      espacios: [], horarios: [], reservas: [],
+      espacios: [],
+      horarios: [],
+      reservas: [],
       espacioSeleccionado: null,
       apiUrl: "http://44.207.19.239:3000",
       zusuario: "acuesta",
       
-      // Estado del Modal
+      fechaConsulta: new Date().toISOString().split('T')[0], 
       mostrarModal: false,
       horarioAEnviar: null,
-      nuevaReserva: {
-        fecha: new Date().toISOString().split('T')[0], // Hoy por defecto
-        motivo: ''
-      }
+      motivoReserva: ''
     }
   },
-  mounted() { this.cargarDatos(); },
+  mounted() {
+    this.cargarDatos();
+  },
   methods: {
     async cargarDatos() {
       try {
@@ -99,7 +105,9 @@ export default {
         ]);
         this.espacios = await resE.json();
         this.horarios = await resH.json();
-      } catch (e) { console.error("Error cargando datos base", e); }
+      } catch (e) {
+        console.error("Error cargando datos base", e);
+      }
     },
     async entrarEnEspacio(espacio) {
       this.espacioSeleccionado = espacio;
@@ -109,30 +117,37 @@ export default {
       try {
         const res = await fetch(`${this.apiUrl}/reservas?zusuario=${this.zusuario}`);
         const data = await res.json();
-        this.reservas = data.filter(r => String(r.espacio_id) === String(this.espacioSeleccionado.id));
-      } catch (e) { console.error("Error cargando reservas", e); }
+        
+        // CORRECCIÓN PARA QUE APAREZCA "OCUPADO":
+        // Comparamos el espacio y limpiamos la fecha de la BD (split('T')[0]) 
+        // para que coincida con el formato "YYYY-MM-DD" del input
+        this.reservas = data.filter(r => {
+          const mismoEspacio = String(r.espacio_id) === String(this.espacioSeleccionado.id);
+          const fechaLimpiaDB = r.fecha_reserva ? r.fecha_reserva.split('T')[0] : '';
+          return mismoEspacio && (fechaLimpiaDB === this.fechaConsulta);
+        });
+      } catch (e) {
+        console.error("Error cargando reservas", e);
+      }
     },
     estaReservado(horarioId) {
       return this.reservas.some(r => String(r.horario_id) === String(horarioId));
     },
     obtenerUsuario(horarioId) {
       const r = this.reservas.find(r => String(r.horario_id) === String(horarioId));
-      return r ? r.usuario_login : '--'; 
+      return r ? r.usuario_login : '--'; // Muestra "Prof" correctamente
     },
-
-    // Lógica del Modal
     abrirModal(horarioId) {
       this.horarioAEnviar = horarioId;
-      this.nuevaReserva.motivo = ''; // Limpiamos el motivo
+      this.motivoReserva = '';
       this.mostrarModal = true;
     },
     cerrarModal() {
       this.mostrarModal = false;
       this.horarioAEnviar = null;
     },
-
     async crearReserva() {
-      if (!this.nuevaReserva.motivo) {
+      if (!this.motivoReserva) {
         alert("Por favor, introduce un motivo.");
         return;
       }
@@ -145,8 +160,8 @@ export default {
         espacio_id: String(this.espacioSeleccionado.id),
         horario_id: String(this.horarioAEnviar),
         usuario_login: nombreProfesor,
-        fecha_reserva: this.nuevaReserva.fecha,
-        motivo_reserva: this.nuevaReserva.motivo,
+        fecha_reserva: this.fechaConsulta,
+        motivo_reserva: this.motivoReserva,
         zfecha: new Date().toISOString(),
         zusuario: this.zusuario
       };
@@ -159,7 +174,7 @@ export default {
         });
 
         if (res.ok) {
-          alert(`Reserva creada para ${nombreProfesor}`);
+          alert(`Reserva confirmada para ${this.fechaConsulta}`);
           this.cerrarModal();
           await this.cargarReservas(); 
         }
@@ -172,9 +187,22 @@ export default {
 </script>
 
 <style scoped>
-/* ... Tus estilos anteriores se mantienen ... */
-
-/* ESTILOS DEL MODAL */
+.filtro-fecha {
+  background: #f0f4f8;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border: 1px solid #d1d9e0;
+}
+.input-fecha {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
@@ -189,7 +217,7 @@ export default {
 .form-group { margin-top: 20px; text-align: left; }
 .form-group label { display: block; font-size: 14px; margin-bottom: 5px; color: #666; }
 .form-group input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-
+.input-disabled { background-color: #f9f9f9; color: #999; cursor: not-allowed; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 30px; }
 .btn-cancelar { background: #eee; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
 .btn-confirmar { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
@@ -200,10 +228,13 @@ export default {
 .card-aula:hover { border-color: #007bff; transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
 .btn-acceder { background: #007bff; color: white; border: none; padding: 8px 15px; border-radius: 6px; width: 100%; margin-top: 15px; cursor: pointer; }
 .detalle-container { background: white; padding: 30px; border-radius: 12px; }
+.detalle-header { display: flex; align-items: center; gap: 20px; margin-bottom: 10px; }
+.btn-back { background: none; border: none; color: #007bff; font-weight: bold; cursor: pointer; }
 .tabla-reservas { width: 100%; border-collapse: collapse; }
 .tabla-reservas td, .tabla-reservas th { padding: 12px; border-bottom: 1px solid #eee; }
 .pill { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; }
 .pill-free { background: #e8f5e9; color: #2e7d32; }
 .pill-busy { background: #ffebee; color: #c62828; }
 .btn-reserva { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.btn-disabled { background: #eee; color: #999; border: none; padding: 6px 12px; border-radius: 4px; cursor: not-allowed; }
 </style>

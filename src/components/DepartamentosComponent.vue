@@ -35,9 +35,9 @@ export default {
   data() {
     return {
       lista: [],
-      // Usamos 'id' y 'nombre' porque así lo define la base de datos
       nuevo: { id: '', nombre: '' },
-      url: 'http://100.27.173.196:3000/departamentos',
+      // CORRECCIÓN: IP unificada con el resto del proyecto
+      url: 'http://44.207.19.239:3000/departamentos',
       zusuario: 'acuesta'
     }
   },
@@ -47,10 +47,12 @@ export default {
   methods: {
     async cargar() {
       try {
+        // Añadimos zusuario para cumplir requisitos de auditoría de la API
         const res = await fetch(`${this.url}?zusuario=${this.zusuario}`);
+        if (!res.ok) throw new Error("Fallo al cargar");
         this.lista = await res.json();
       } catch (e) {
-        console.error("Error al conectar con la API de departamentos");
+        console.error("Error al conectar con la API de departamentos:", e);
       }
     },
     async crear() {
@@ -58,21 +60,43 @@ export default {
         return alert("Por favor, rellena el ID y el nombre");
       }
 
-      await fetch(`${this.url}?zusuario=${this.zusuario}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.nuevo)
-      });
+      try {
+        const res = await fetch(`${this.url}?zusuario=${this.zusuario}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...this.nuevo,
+            zusuario: this.zusuario, // Aseguramos auditoría en el body
+            zfecha: new Date().toISOString()
+          })
+        });
 
-      this.cargar(); // Actualizamos la lista automáticamente
-      this.nuevo = { id: '', nombre: '' }; // Limpiamos los campos
+        if (res.ok) {
+          this.cargar();
+          this.nuevo = { id: '', nombre: '' };
+        }
+      } catch (e) {
+        alert("Error al crear el departamento");
+      }
     },
     async eliminar(id) {
       if (confirm(`¿Seguro que quieres borrar el departamento ${id}?`)) {
-        await fetch(`${this.url}/${id}?zusuario=${this.zusuario}`, { 
-          method: 'DELETE' 
-        });
-        this.cargar();
+        // Ajustamos la ruta para que sea /departamentos/ID?zusuario=...
+        const urlEliminar = `${this.url}/${id}?zusuario=${this.zusuario}`;
+        
+        try {
+          const res = await fetch(urlEliminar, { 
+            method: 'DELETE' 
+          });
+          
+          if (res.ok) {
+            this.cargar();
+          } else {
+            alert("No se pudo eliminar el departamento. Verifique si tiene dependencias.");
+          }
+        } catch (e) {
+          console.error("Error en la petición DELETE", e);
+        }
       }
     }
   }

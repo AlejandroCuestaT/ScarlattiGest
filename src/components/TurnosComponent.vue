@@ -1,28 +1,45 @@
 <template>
-  <div>
-    <div class="cabecera">
-      <h2>Turnos</h2>
-      <button @click="mostrarFormulario = !mostrarFormulario">
-        {{ mostrarFormulario ? 'Cerrar' : 'Nuevo Turno' }}
+  <div class="turnos-container">
+    <div class="header-section">
+      <h2>⏱ Gestión de Turnos del Sistema</h2>
+      <button @click="mostrarForm = !mostrarForm" class="btn-nuevo">
+        {{ mostrarForm ? '✖ Cancelar' : '➕ Crear Nuevo Turno' }}
       </button>
     </div>
 
-    <div v-if="mensaje" :class="['aviso', tipoMensaje]">{{ mensaje }}</div>
-
-    <div v-if="mostrarFormulario" class="formulario">
-      <h3>Añadir turno</h3>
-      <form @submit.prevent="guardar">
-        <input v-model="form.nombre" placeholder="Nombre (Ej: Mañana, Tarde)" required>
-        <button type="submit">Guardar</button>
-      </form>
+    <div v-if="mostrarForm" class="card-formulario">
+      <div class="grid-turnos">
+        <div class="campo">
+          <label>Código Turno (ID - Máx 10)</label>
+          <input v-model="nuevoTurno.id" placeholder="Ej: 1m" maxlength="10">
+        </div>
+        <div class="campo">
+          <label>Nombre/Descripción</label>
+          <input v-model="nuevoTurno.nombre" placeholder="Ej: Mañana Primera">
+        </div>
+        <button @click="guardarTurno" class="btn-confirmar">Registrar Turno</button>
+      </div>
     </div>
 
-    <div class="lista">
-      <div v-for="turno in turnos" :key="turno.id" class="tarjeta">
-        <small>ID: {{ turno.id }}</small>
-        <h4>{{ turno.nombre }}</h4>
-        <button @click="eliminar(turno.id)" style="color: red;">Eliminar</button>
-      </div>
+    <div class="tabla-wrapper">
+      <table class="tabla-turnos">
+        <thead>
+          <tr>
+            <th>ID (Código)</th>
+            <th>Descripción del Turno</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="t in turnos" :key="t.id">
+            <td><span class="badge-turno">{{ t.id }}</span></td>
+            <td>{{ t.nombre }}</td>
+            <td>
+              <button @click="eliminarTurno(t.id)" class="btn-borrar">🗑 Eliminar</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
@@ -31,78 +48,77 @@
 export default {
   data() {
     return {
-      url: 'http://100.27.173.196:3000/turnos',
-      zusuario: 'acuesta',
-      turnos: [],               
-      mostrarFormulario: false,
-      mensaje: '',
-      tipoMensaje: '',
-      form: { nombre: '' }
+      turnos: [],
+      mostrarForm: false,
+      apiUrl: "http://44.207.19.239:3000",
+      zusuario: "acuesta",
+      nuevoTurno: { id: '', nombre: '' }
     }
   },
-
-  mounted() {
-    this.cargar()
-  },
-
+  mounted() { this.cargarTurnos(); },
   methods: {
-    async cargar() {
+    async cargarTurnos() {
       try {
-        let res = await fetch(`${this.url}?zusuario=${this.zusuario}`)
-        this.turnos = await res.json()
-      } catch (e) {
-        this.mostrarMensaje('Error al cargar turnos', 'error')
-      }
+        const res = await fetch(`${this.apiUrl}/turnos?zusuario=${this.zusuario}`);
+        this.turnos = await res.json();
+      } catch (e) { console.error("Error al cargar turnos", e); }
     },
-
-    async guardar() {
-      let ids = this.turnos.map(t => parseInt(t.id))
-      let siguienteId = ids.length > 0 ? Math.max(...ids) + 1 : 1
-
-      let payload = { id: siguienteId.toString(), nombre: this.form.nombre, zusuario: this.zusuario }
+    async guardarTurno() {
+      if (!this.nuevoTurno.id || this.nuevoTurno.id.length > 10) {
+        return alert("El ID es obligatorio y no puede superar los 10 caracteres.");
+      }
 
       try {
-        let res = await fetch(this.url, {
+        const res = await fetch(`${this.apiUrl}/turnos?zusuario=${this.zusuario}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
+          body: JSON.stringify({
+            ...this.nuevoTurno,
+            zfecha: new Date().toISOString(),
+            zusuario: this.zusuario
+          })
+        });
+
         if (res.ok) {
-          this.mostrarMensaje('Turno guardado', 'exito')
-          this.mostrarFormulario = false
-          this.form = { nombre: '' }
-          this.cargar()
+          this.mostrarForm = false;
+          this.nuevoTurno = { id: '', nombre: '' };
+          this.cargarTurnos();
+        } else {
+          const err = await res.json();
+          alert("Error al guardar: " + err.error);
         }
-      } catch (e) {
-        this.mostrarMensaje('Error al guardar', 'error')
-      }
+      } catch (e) { alert("Error de conexión con la API"); }
     },
-
-    async eliminar(id) {
-      if (!confirm('¿Eliminar este turno?')) return
-      await fetch(`${this.url}/${id}?zusuario=${this.zusuario}`, { method: 'DELETE' })
-      this.cargar()
-    },
-
-    mostrarMensaje(texto, tipo) {
-      this.mensaje = texto
-      this.tipoMensaje = tipo
-      setTimeout(() => this.mensaje = '', 3000)
+    async eliminarTurno(id) {
+      if (!confirm(`¿Eliminar el turno ${id}? Esto podría afectar a los cursos vinculados.`)) return;
+      
+      try {
+        await fetch(`${this.apiUrl}/turnos/${id}?zusuario=${this.zusuario}`, { method: 'DELETE' });
+        this.cargarTurnos();
+      } catch (e) { alert("Error al eliminar"); }
     }
   }
 }
 </script>
 
 <style scoped>
-.cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.formulario { background: #f9f9f9; padding: 15px; border: 1px solid #ccc; margin-bottom: 20px; max-width: 350px; }
-input { display: block; width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; }
-button { padding: 8px 12px; cursor: pointer; margin-top: 5px; }
-.lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
-.tarjeta { background: #fff; border: 1px solid #ddd; padding: 15px; text-align: center; }
-.tarjeta small { color: #999; font-size: 12px; }
-.tarjeta h4 { margin: 8px 0 10px; }
-.aviso { padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; }
-.exito { background: #d4edda; color: #155724; }
-.error { background: #f8d7da; color: #721c24; }
+.turnos-container { padding: 20px; }
+.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.btn-nuevo { background: #4f46e5; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; }
+
+.card-formulario { background: white; padding: 20px; border-radius: 10px; border: 1px solid #e5e7eb; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.grid-turnos { display: grid; grid-template-columns: 1fr 2fr auto; gap: 15px; align-items: end; }
+.campo label { display: block; font-size: 12px; font-weight: bold; color: #6b7280; margin-bottom: 5px; }
+.campo input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+
+.btn-confirmar { background: #10b981; color: white; border: none; padding: 11px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+.tabla-wrapper { background: white; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; }
+.tabla-turnos { width: 100%; border-collapse: collapse; }
+.tabla-turnos th { background: #f9fafb; padding: 15px; text-align: left; color: #4b5563; font-size: 13px; }
+.tabla-turnos td { padding: 15px; border-top: 1px solid #f3f4f6; }
+
+.badge-turno { background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-family: monospace; }
+.btn-borrar { color: #dc2626; background: none; border: none; cursor: pointer; font-size: 13px; }
+.btn-borrar:hover { text-decoration: underline; }
 </style>

@@ -1,33 +1,33 @@
 <template>
   <div class="panel-horarios">
-    <div class="header-flex">
-      <h2>Cronograma de Horarios</h2>
-      <button @click="obtenerHorarios" class="btn-refresh">Actualizar Lista</button>
+    <h2>Horarios Generales de Ocupación</h2>
+
+    <div class="filtro-fecha">
+      <label><b>Ver ocupación para el día:</b></label>
+      <input type="date" v-model="fechaConsulta" @change="cargarDatos" class="input-fecha">
     </div>
 
     <div class="tabla-container">
-      <table class="tabla-gestion">
+      <table class="tabla-maestra">
         <thead>
           <tr>
-            <th>Descripción de la Franja</th>
-            <th>Inicio</th>
-            <th>Fin</th>
-            <th>Turno</th>
+            <th class="col-hora">Franja Horaria</th>
+            <th v-for="e in espacios" :key="e.id">{{ e.nombre }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="h in horarios" :key="h.id">
-            <td class="nombre-franja">{{ h.nombre }}</td>
-            <td><span class="badge-hora">{{ h.hora_inicio }}</span></td>
-            <td><span class="badge-hora">{{ h.hora_fin }}</span></td>
-            <td>
-              <span :class="['turno-tag', h.turno_id === '1m' ? 'mañana' : 'tarde']">
-                {{ h.turno_id === '1m' ? 'MAÑANA' : 'TARDE' }}
-              </span>
+            <td class="celda-hora">
+              <b>{{ h.nombre }}</b><br>
+              <small>{{ h.hora_inicio }} - {{ h.hora_fin }}</small>
             </td>
-          </tr>
-          <tr v-if="horarios.length === 0">
-            <td colspan="4" class="no-data">No hay horarios registrados. Pulsa actualizar.</td>
+            <td v-for="e in espacios" :key="e.id" class="celda-reserva">
+              <div v-if="obtenerReserva(e.id, h.id)" class="bloque-ocupado">
+                <span class="user-tag">{{ obtenerReserva(e.id, h.id).usuario_login }}</span>
+                <small class="motivo-tag">{{ obtenerReserva(e.id, h.id).motivo_reserva }}</small>
+              </div>
+              <div v-else class="bloque-libre">LIBRE</div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -37,52 +37,92 @@
 
 <script>
 export default {
-  name: 'HorariosComponent',
+  name: 'HorariosGeneral',
   data() {
     return {
+      espacios: [],
       horarios: [],
-      url: "http://44.207.19.239:3000/horarios",
+      reservas: [],
+      fechaConsulta: new Date().toISOString().split('T')[0],
+      apiUrl: "http://44.207.19.239:3000",
       zusuario: "acuesta"
     }
   },
   mounted() {
-    // Se ejecuta automáticamente al cargar el componente
-    this.obtenerHorarios();
+    this.cargarDatos();
   },
   methods: {
-    async obtenerHorarios() {
+    async cargarDatos() {
       try {
-        const res = await fetch(`${this.url}?zusuario=${this.zusuario}`);
-        if (res.ok) {
-          this.horarios = await res.json();
-        } else {
-          console.error("Error al obtener datos");
-        }
-      } catch (error) {
-        console.error("Error de conexión:", error);
+        const [resE, resH, resR] = await Promise.all([
+          fetch(`${this.apiUrl}/espacios?zusuario=${this.zusuario}`),
+          fetch(`${this.apiUrl}/horarios?zusuario=${this.zusuario}`),
+          fetch(`${this.apiUrl}/reservas?zusuario=${this.zusuario}`)
+        ]);
+
+        this.espacios = await resE.json();
+        this.horarios = await resH.json();
+        const todasLasReservas = await resR.json();
+
+        // Filtramos las reservas por la fecha seleccionada (limpiando el ISO de la BD)
+        this.reservas = todasLasReservas.filter(r => {
+          const fechaLimpiaDB = r.fecha_reserva ? r.fecha_reserva.split('T')[0] : '';
+          return fechaLimpiaDB === this.fechaConsulta;
+        });
+      } catch (e) {
+        console.error("Error cargando cronograma", e);
       }
+    },
+    obtenerReserva(espacioId, horarioId) {
+      // Buscamos si existe una reserva que coincida con ese aula y esa hora
+      return this.reservas.find(r => 
+        String(r.espacio_id) === String(espacioId) && 
+        String(r.horario_id) === String(horarioId)
+      );
     }
   }
 }
 </script>
 
 <style scoped>
-.panel-horarios { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-.header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.panel-horarios { background: white; padding: 30px; border-radius: 12px; }
+.filtro-fecha {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 25px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border: 1px solid #eee;
+}
+.input-fecha { padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
 
 .tabla-container { overflow-x: auto; }
-.tabla-gestion { width: 100%; border-collapse: collapse; font-size: 14px; }
-.tabla-gestion th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; color: #495057; }
-.tabla-gestion td { padding: 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+.tabla-maestra { width: 100%; border-collapse: collapse; min-width: 800px; }
+.tabla-maestra th {
+  background: #007bff;
+  color: white;
+  padding: 15px;
+  border: 1px solid #0069d9;
+  font-size: 14px;
+}
+.col-hora { width: 150px; background: #343a40 !important; }
 
-.nombre-franja { font-weight: 500; color: #2c3e50; }
-.badge-hora { background: #f0f4f8; padding: 5px 10px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #34495e; border: 1px solid #dcdfe6; }
+.celda-hora { background: #f8f9fa; text-align: center; border: 1px solid #dee2e6; padding: 10px; }
+.celda-reserva { border: 1px solid #dee2e6; padding: 5px; vertical-align: middle; text-align: center; height: 60px; }
 
-.turno-tag { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
-.turno-tag.mañana { background: #fff4e5; color: #d35400; }
-.turno-tag.tarde { background: #e3f2fd; color: #0d47a1; }
+.bloque-ocupado {
+  background: #ffebee;
+  color: #c62828;
+  padding: 8px;
+  border-radius: 6px;
+  border-left: 4px solid #ef5350;
+  display: flex;
+  flex-direction: column;
+}
+.user-tag { font-weight: bold; font-size: 13px; }
+.motivo-tag { font-size: 11px; opacity: 0.8; font-style: italic; }
 
-.btn-refresh { background: #1877f2; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-.btn-refresh:hover { background: #1565c0; }
-.no-data { text-align: center; padding: 40px; color: #999; }
+.bloque-libre { color: #2e7d32; font-size: 11px; font-weight: bold; opacity: 0.5; }
 </style>
