@@ -1,57 +1,87 @@
 <template>
-  <div class="panel-profesores">
-    <div class="header-seccion">
-      <h2>Panel de Instructores (Staff Dev)</h2>
-      <button @click="mostrarFormulario = !mostrarFormulario" class="btn-nuevo">
-        {{ mostrarFormulario ? '✖ Cancelar' : '➕ Alta Profesor' }}
+  <div class="panelProfesores">
+    <div class="headerSeccion">
+      <h2>Gestión de Claustro</h2>
+      <button @click="mostrarFormulario = !mostrarFormulario" class="btnNuevo">
+        {{ mostrarFormulario ? 'Cancelar Registro' : 'Alta Nuevo Profesor' }}
       </button>
     </div>
 
-    <div v-if="mostrarFormulario" class="card-formulario">
-      <h3>Registrar Nuevo Instructor</h3>
-      <div class="grid-form">
-        <input v-model="nuevo.dni_nie" placeholder="DNI/NIE (Ej: 56437845T)" maxlength="10">
-        <input v-model="nuevo.nombre" placeholder="Nombre">
-        <input v-model="nuevo.apellidos" placeholder="Apellidos">
-        <input v-model="nuevo.correo_institucional" type="email" placeholder="ej@prueba.com">
-        
-        <select v-model="nuevo.departamento_id">
-          <option value="10">Dpto. Software (10)</option>
-          <option value="IA">Dpto. IA</option>
-          <option value="SISTEMAS">Dpto. Sistemas</option>
-        </select>
+    <transition name="fade">
+      <div v-if="mostrarFormulario" class="cardFormulario">
+        <h3>Registrar Nuevo Instructor</h3>
+        <div class="gridForm">
+          <div class="campoInput">
+            <label>Identificación (DNI/NIE)</label>
+            <input 
+              v-model="formProfesor.dni_nie" 
+              placeholder="Ej: 56437845T" 
+              maxlength="10"
+              @input="formProfesor.dni_nie = formProfesor.dni_nie.toUpperCase().trim()"
+            >
+          </div>
+          <div class="campoInput">
+            <label>Nombre</label>
+            <input v-model="formProfesor.nombre" placeholder="Nombre">
+          </div>
+          <div class="campoInput">
+            <label>Apellidos</label>
+            <input v-model="formProfesor.apellidos" placeholder="Apellido">
+          </div>
+          <div class="campoInput">
+            <label>Correo Institucional</label>
+            <input v-model="formProfesor.correo_institucional" type="email" placeholder="usuario@scarlatti.es">
+          </div>
+          
+          <div class="campoInput">
+            <label>Departamento</label>
+            <select v-model="formProfesor.departamento_id">
+              <option value="10">Dpto. Software (10)</option>
+              <option value="IA">Inteligencia Artificial</option>
+              <option value="SISTEMAS">Sistemas y Redes</option>
+            </select>
+          </div>
 
-        <select v-model="nuevo.rol_id">
-          <option value="Prof_a">Profesor</option>
-          <option value="Admin_a">Administrador</option>
-        </select>
+          <div class="campoInput">
+            <label>Rol de Sistema</label>
+            <select v-model="formProfesor.rol_id">
+              <option value="Prof_a">Profesor</option>
+            </select>
+          </div>
 
-        <button @click="crearProfesor" class="btn-guardar">Guardar en Plantilla</button>
+          <button @click="guardarProfesor" class="btnGuardar">Sincronizar con Plantilla</button>
+        </div>
       </div>
+    </transition>
+
+    <div class="tablaContainer">
+      <table class="tablaMaestra">
+        <thead>
+          <tr>
+            <th>Documento</th>
+            <th>Nombre Completo</th>
+            <th>Departamento</th>
+            <th>Contacto</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="profesor in listaProfesores" :key="profesor.dni_nie">
+            <td><span class="badgeDni">{{ profesor.dni_nie }}</span></td>
+            <td><strong>{{ profesor.nombre }} {{ profesor.apellidos }}</strong></td>
+            <td><span class="tagDpto">{{ profesor.departamento_id }}</span></td>
+            <td class="txtEmail">{{ profesor.correo_institucional }}</td>
+            <td>
+              <button @click="eliminarRegistro(profesor.dni_nie)" class="btnEliminar">Eliminar</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
-    <table class="tabla-profesores">
-      <thead>
-        <tr>
-          <th>DNI/NIE</th>
-          <th>Nombre Completo</th>
-          <th>Departamento</th>
-          <th>Email</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="p in profesores" :key="p.dni_nie">
-          <td><span class="badge-dni">{{ p.dni_nie }}</span></td>
-          <td><b>{{ p.nombre }} {{ p.apellidos }}</b></td>
-          <td><span class="tag-dpto">{{ p.departamento_id }}</span></td>
-          <td>{{ p.correo_institucional }}</td>
-          <td>
-            <button @click="eliminarProfesor(p.dni_nie)" class="btn-eliminar">Eliminar</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-if="listaProfesores.length === 0" class="noData">
+      No hay personal docente registrado en la base de datos actual.
+    </div>
   </div>
 </template>
 
@@ -60,80 +90,88 @@ export default {
   name: 'ProfesoresComponent',
   data() {
     return {
-      profesores: [],
+      // Estado de datos y UI
+      listaProfesores: [],
       mostrarFormulario: false,
       apiUrl: "http://44.207.19.239:3000",
-      zusuario: "acuesta", // Tu usuario según el sistema
-      nuevo: {
+      zusuario: "acuesta",
+      // Modelo reactivo para el formulario
+      formProfesor: {
         dni_nie: '',
         nombre: '',
         apellidos: '',
         correo_institucional: '',
-        departamento_id: '10', // Valor por defecto visto en tu tabla
+        departamento_id: '10',
         rol_id: 'Prof_a'
       }
     }
   },
   mounted() {
-    this.cargarProfesores();
+    this.obtenerProfesores();
   },
   methods: {
-    async cargarProfesores() {
+    // Recupera la colección completa de docentes
+    async obtenerProfesores() {
       try {
-        const res = await fetch(`${this.apiUrl}/profesores?zusuario=${this.zusuario}`);
-        const data = await res.json();
-        this.profesores = Array.isArray(data) ? data : [];
-      } catch (e) {
-        console.error("Error cargando profesores:", e);
+        const respuesta = await fetch(`${this.apiUrl}/profesores?zusuario=${this.zusuario}`);
+        const datos = await respuesta.json();
+        this.listaProfesores = Array.isArray(datos) ? datos : [];
+      } catch (error) {
+        console.error("Fallo al obtener la plantilla docente:", error);
       }
     },
-    async crearProfesor() {
-      // Validación básica antes de enviar
-      if (!this.nuevo.dni_nie || !this.nuevo.nombre) {
-        alert("El DNI y el Nombre son obligatorios");
-        return;
+
+    // Procesa el alta de un nuevo profesor con auditoría
+    async guardarProfesor() {
+      if (!this.formProfesor.dni_nie || !this.formProfesor.nombre) {
+        return alert("Los campos 'DNI' y 'Nombre' son requeridos para el alta.");
       }
 
       const payload = {
-        ...this.nuevo,
+        ...this.formProfesor,
         zfecha: new Date().toISOString(),
         zusuario: this.zusuario
       };
 
       try {
-        const res = await fetch(`${this.apiUrl}/profesores?zusuario=${this.zusuario}`, {
+        const respuesta = await fetch(`${this.apiUrl}/profesores?zusuario=${this.zusuario}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-          alert("¡Profesor guardado con éxito!");
-          this.resetForm();
+        if (respuesta.ok) {
+          alert("Profesor registrado correctamente.");
+          this.limpiarFormulario();
           this.mostrarFormulario = false;
-          this.cargarProfesores(); // Recarga la lista para ver el nuevo profesor
+          this.obtenerProfesores();
         } else {
-          const errData = await res.json();
-          alert("Error al guardar: " + (errData.error || "Error desconocido"));
+          const errorApi = await respuesta.json();
+          alert("Error de registro: " + (errorApi.error || "Datos duplicados o inválidos"));
         }
       } catch (err) {
-        console.error("Error de red:", err);
-        alert("No se pudo conectar con el servidor");
+        alert("Error crítico de comunicación con el servidor.");
       }
     },
-    async eliminarProfesor(dni) {
-      if (!confirm(`¿Eliminar al profesor ${dni}?`)) return;
+
+    // Elimina un docente tras validación de seguridad
+    async eliminarRegistro(dni) {
+      if (!confirm(`¿Confirmas la baja permanente del profesor con identificación ${dni}?`)) return;
+      
       try {
-        await fetch(`${this.apiUrl}/profesores/${dni}?zusuario=${this.zusuario}`, { 
-          method: 'DELETE' 
-        });
-        this.cargarProfesores();
-      } catch (e) {
-        console.error("Error al eliminar:", e);
+        const urlDelete = `${this.apiUrl}/profesores/${dni}?zusuario=${this.zusuario}`;
+        const respuesta = await fetch(urlDelete, { method: 'DELETE' });
+        
+        if (respuesta.ok) {
+          this.obtenerProfesores();
+        }
+      } catch (error) {
+        console.error("Error al procesar la baja:", error);
       }
     },
-    resetForm() {
-      this.nuevo = { 
+
+    limpiarFormulario() {
+      this.formProfesor = { 
         dni_nie: '', nombre: '', apellidos: '', 
         correo_institucional: '', departamento_id: '10', rol_id: 'Prof_a' 
       };
@@ -143,21 +181,35 @@ export default {
 </script>
 
 <style scoped>
-.panel-profesores { background: white; padding: 25px; border-radius: 12px; }
-.header-seccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.panelProfesores { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+.headerSeccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #f8fafc; padding-bottom: 15px; }
 
-.card-formulario { background: #f1f5f9; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
-.grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-.grid-form input, .grid-form select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.btnNuevo { background: #1e293b; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+.btnNuevo:hover { background: #334155; }
 
-.btn-nuevo { background: #334155; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-.btn-guardar { background: #0f172a; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; grid-column: 1 / -1; font-weight: bold; margin-top: 10px; }
+.cardFormulario { background: #f8fafc; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 30px; }
+.gridForm { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
 
-.tabla-profesores { width: 100%; border-collapse: collapse; }
-.tabla-profesores th { text-align: left; padding: 12px; background: #f8fafc; color: #475569; border-bottom: 2px solid #e2e8f0; }
-.tabla-profesores td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+.campoInput label { display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; }
+.gridForm input, .gridForm select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; background: white; }
 
-.badge-dni { font-family: monospace; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; color: #1e293b; font-weight: bold; }
-.tag-dpto { background: #ecfdf5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-.btn-eliminar { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.btnGuardar { background: #2563eb; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; grid-column: 1 / -1; font-weight: bold; margin-top: 10px; transition: opacity 0.2s; }
+.btnGuardar:hover { opacity: 0.9; }
+
+.tablaContainer { overflow-x: auto; }
+.tablaMaestra { width: 100%; border-collapse: collapse; }
+.tablaMaestra th { text-align: left; padding: 15px; background: #f1f5f9; color: #475569; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; }
+.tablaMaestra td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+
+.badgeDni { font-family: 'Courier New', monospace; background: #e2e8f0; padding: 4px 10px; border-radius: 6px; color: #1e293b; font-weight: bold; }
+.tagDpto { background: #dcfce7; color: #166534; padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+.txtEmail { color: #64748b; }
+
+.btnEliminar { background: none; border: 1px solid #fee2e2; color: #ef4444; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+.btnEliminar:hover { background: #ef4444; color: white; border-color: #ef4444; }
+
+.noData { text-align: center; padding: 40px; color: #94a3b8; font-style: italic; }
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter, .fade-leave-to { opacity: 0; }
 </style>

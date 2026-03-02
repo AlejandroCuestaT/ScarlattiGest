@@ -15,22 +15,21 @@
 
     <div v-else class="main-layout">
       <aside class="sidebar">
-        
         <div v-if="usuarioActivo.rol === 'Administrador'">
-          <p class="menu-label">DATOS MAESTROS</p>
+          <p class="menu-label">ADMINISTRACION</p>
           <button @click="pagina = 'alumnos'" :class="{active: pagina === 'alumnos'}">Alumnos</button>
           <button @click="pagina = 'profesores'" :class="{active: pagina === 'profesores'}">Profesores</button>
           <button @click="pagina = 'cursos'" :class="{active: pagina === 'cursos'}">Cursos</button>
           <button @click="pagina = 'departamentos'" :class="{active: pagina === 'departamentos'}">Departamentos</button>
           <button @click="pagina = 'etapas'" :class="{active: pagina === 'etapas'}">Etapas</button>
           
-          <p class="menu-label">SISTEMA</p>
+          <p class="menu-label">GESTION</p>
           <button @click="pagina = 'usuarios'" :class="{active: pagina === 'usuarios'}">Usuarios</button>
           <button @click="pagina = 'roles'" :class="{active: pagina === 'roles'}">Roles</button>
           <button @click="pagina = 'turnos'" :class="{active: pagina === 'turnos'}">Turnos</button>
         </div>
 
-        <div v-if="usuarioActivo.rol === 'Administrador' || usuarioActivo.rol === 'Profesor' || usuarioActivo.rol === 'TIC'">
+        <div v-if="['Administrador', 'Profesor', 'TIC'].includes(usuarioActivo.rol)">
           <p class="menu-label">RESERVAS</p>
           <button @click="pagina = 'espacios'" :class="{active: pagina === 'espacios'}">
             {{ usuarioActivo.rol === 'Administrador' ? 'Gestionar Aulas' : 'Reservar Aula' }}
@@ -44,6 +43,7 @@
         </button>
       </aside>
 
+      <!-- Saludo sea el rol que sea con nombre y el rol que le corresponde -->
       <main class="content-area">
         <div v-if="pagina === 'inicio'" class="welcome-card">
           <h1>Panel de Control</h1>
@@ -52,6 +52,7 @@
           <p>Has accedido con el rol: <b>{{ usuarioActivo.rol }}</b></p>
         </div>
 
+        <!-- A lo que puede acceder cada uno dependiendo del rol -->
         <template v-if="usuarioActivo.rol === 'Administrador'">
           <AlumnosComponent v-if="pagina === 'alumnos'" />
           <ProfesoresComponent v-if="pagina === 'profesores'" />
@@ -87,7 +88,7 @@
 </template>
 
 <script>
-
+//Import de todos los componentes
 import LoginComponent from './components/LoginComponent.vue';
 import AlumnosComponent from './components/AlumnosComponent.vue';
 import ProfesoresComponent from './components/ProfesoresComponent.vue';
@@ -117,14 +118,17 @@ export default {
     }
   },
   methods: {
+    //Recoge los datos al iniciar sesion
     iniciarSesion(data) {
       this.usuarioActivo = Array.isArray(data) ? data[0] : data;
       this.pagina = 'inicio';
     },
+    //Vacia el usuario activo y se sale de la sesion
     cerrarSesion() {
       this.usuarioActivo = null;
       this.pagina = 'inicio';
     },
+    //Cambia de color el apartado del rol dependiendo de que rol tenga
     getBadgeClass(rol) {
       if (rol === 'Administrador') return 'badge-admin';
       if (rol === 'TIC') return 'badge-tic';

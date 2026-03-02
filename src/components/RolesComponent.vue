@@ -1,37 +1,59 @@
 <template>
-  <div class="roles-panel">
-    <div class="cabecera">
-      <h2>🛡️ Gestión de Roles</h2>
-      <button @click="mostrarFormulario = !mostrarFormulario" class="btn-main">
-        {{ mostrarFormulario ? '✖️ Cancelar' : '➕ Nuevo Rol' }}
+  <div class="panelRoles">
+    <div class="headerSeccion">
+      <h2>Definición de Roles y Permisos</h2>
+      <button @click="alternarFormulario" class="btnAccion">
+        {{ formularioVisible ? 'Cerrar Registro' : 'Crear Nuevo Perfil' }}
       </button>
     </div>
 
-    <div v-if="mostrarFormulario" class="formulario-card">
-      <h3>Registrar Perfil de Acceso</h3>
-      <form @submit.prevent="guardar">
-        <div class="grid-inputs">
-          <input v-model="form.id" placeholder="ID técnico (Ej: Admin_a, Prof_a)" required>
-          <input v-model="form.nombre" placeholder="Nombre público (Ej: Administrador)" required>
-          <input v-model.number="form.nivel_privilegio" type="number" min="1" max="10" placeholder="Nivel (1-10)" required>
-          <input v-model="form.descripcion" placeholder="Descripción breve" required>
-        </div>
-        <button type="submit" class="btn-save">💾 Guardar Rol</button>
-      </form>
-    </div>
+    <transition name="slide">
+      <div v-if="formularioVisible" class="cardRegistro">
+        <h3>Configurar Nuevo Perfil de Acceso</h3>
+        <form @submit.prevent="ejecutarGuardado">
+          <div class="gridCampos">
+            <div class="grupoInput">
+              <label>ID</label>
+              <input v-model="modeloRol.id" placeholder="Ej: Secret_a" required>
+            </div>
+            <div class="grupoInput">
+              <label>Nombre</label>
+              <input v-model="modeloRol.nombre" placeholder="Ej: Secretario" required>
+            </div>
+            <div class="grupoInput">
+              <label>Privilegio (1-10)</label>
+              <input v-model.number="modeloRol.nivel_privilegio" type="number" min="1" max="10" required>
+            </div>
+            <div class="grupoInput">
+              <label>Descripcion</label>
+              <input v-model="modeloRol.descripcion" placeholder="Que rol hace" required>
+            </div>
+          </div>
+          <button type="submit" class="btnGuardar">Sincronizar Privilegios</button>
+        </form>
+      </div>
+    </transition>
 
-    <div class="lista-grid">
-      <div v-for="rol in roles" :key="rol.id" class="tarjeta-rol">
-        <div class="rol-header">
-          <span class="badge-nivel">Nivel {{ rol.nivel_privilegio }}</span>
-          <small class="id-tag">#{{ rol.id }}</small>
+    <div class="gridRoles">
+      <div v-for="rol in coleccionRoles" :key="rol.id" class="tarjetaRol">
+        <div class="rolMeta">
+          <span class="badgePrivilegio">Prioridad {{ rol.nivel_privilegio }}</span>
+          <code class="idSistema">#{{ rol.id }}</code>
         </div>
-        <h4>{{ rol.nombre }}</h4>
-        <p>{{ rol.descripcion }}</p>
-        <div class="acciones">
-          <button @click="eliminar(rol.id)" class="btn-del">🗑️ Eliminar</button>
+        
+        <h4 class="rolTitulo">{{ rol.nombre }}</h4>
+        <p class="rolInfo">{{ rol.descripcion }}</p>
+        
+        <div class="rolFooter">
+          <button @click="solicitarEliminacion(rol.id)" class="btnBorrar">
+            Revocar Permisos
+          </button>
         </div>
       </div>
+    </div>
+
+    <div v-if="coleccionRoles.length === 0" class="estadoVacio">
+      Cargando configuración de seguridad...
     </div>
   </div>
 </template>
@@ -41,95 +63,148 @@ export default {
   name: 'RolesComponent',
   data() {
     return {
-      // IP corregida para conectar con la base de datos real
-      url: 'http://44.207.19.239:3000/roles',
+      // Configuración de servicio
+      urlBase: 'http://44.207.19.239:3000/roles',
       zusuario: 'acuesta',
-      roles: [],                
-      mostrarFormulario: false,
-      form: { id: '', nombre: '', nivel_privilegio: 1, descripcion: '' }
+      // Estado reactivo
+      coleccionRoles: [],                
+      formularioVisible: false,
+      // Modelo de datos para nuevos registros
+      modeloRol: { 
+        id: '', 
+        nombre: '', 
+        nivel_privilegio: 1, 
+        descripcion: '' 
+      }
     }
   },
   mounted() {
-    this.cargar();
+    this.sincronizarRoles();
   },
   methods: {
-    async cargar() {
+    // Obtención de datos maestros de la API
+    async sincronizarRoles() {
       try {
-        // Añadimos el parámetro de auditoría obligatorio
-        const res = await fetch(`${this.url}?zusuario=${this.zusuario}`);
-        if (!res.ok) throw new Error("Error en servidor");
-        this.roles = await res.json();
-      } catch (e) {
-        console.error('Error al conectar con la API de roles:', e);
+        const respuesta = await fetch(`${this.urlBase}?zusuario=${this.zusuario}`);
+        if (!respuesta.ok) throw new Error("Fallo en la comunicación con el servidor");
+        this.coleccionRoles = await respuesta.json();
+      } catch (error) {
+        console.error('Error de sincronización:', error);
       }
     },
-    async guardar() {
-      // Validación básica para evitar registros corruptos
-      if (!this.form.id.trim()) return alert("El ID del rol es obligatorio");
 
+    alternarFormulario() {
+      this.formularioVisible = !this.formularioVisible;
+      if (!this.formularioVisible) this.resetearModelo();
+    },
+
+    // Envío de nuevo rol con metadatos de auditoría
+    async ejecutarGuardado() {
       const payload = { 
-        ...this.form, 
+        ...this.modeloRol, 
         zusuario: this.zusuario,
         zfecha: new Date().toISOString()
       };
 
       try {
-        const res = await fetch(`${this.url}?zusuario=${this.zusuario}`, {
+        const respuesta = await fetch(`${this.urlBase}?zusuario=${this.zusuario}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-          this.mostrarFormulario = false;
-          this.form = { id: '', nombre: '', nivel_privilegio: 1, descripcion: '' };
-          this.cargar();
+        if (respuesta.ok) {
+          this.formularioVisible = false;
+          this.resetearModelo();
+          this.sincronizarRoles();
         } else {
-          alert("Error: Verifica que el ID no esté duplicado.");
+          alert("Error: El Identificador ya existe o el formato no es válido.");
         }
-      } catch (e) {
-        console.error('Fallo de red al guardar:', e);
+      } catch (error) {
+        console.error('Error al guardar el perfil:', error);
       }
     },
-    async eliminar(id) {
-      if (!confirm('¿Eliminar este rol? Podría afectar a los usuarios vinculados.')) return;
 
-      // Construcción de URL dinámica: /roles/ID?zusuario=USUARIO
-      const urlDelete = `${this.url}/${id}?zusuario=${this.zusuario}`;
+    // Borrado físico del registro (requiere confirmación)
+    async solicitarEliminacion(id) {
+      if (!confirm('¿Estás seguro de eliminar este perfil de acceso? Los usuarios vinculados podrían perder acceso al sistema.')) return;
+
+      const urlFinal = `${this.urlBase}/${id}?zusuario=${this.zusuario}`;
 
       try {
-        const res = await fetch(urlDelete, { method: 'DELETE' });
-        if (res.ok) {
-          this.cargar();
+        const respuesta = await fetch(urlFinal, { method: 'DELETE' });
+        if (respuesta.ok) {
+          this.sincronizarRoles();
         } else {
-          // Captura el 404 mostrado en consola
-          alert("No se pudo eliminar. El rol no existe o está protegido.");
+          alert("Acción denegada: Este rol podría estar protegido o vinculado a usuarios activos.");
         }
-      } catch (e) {
-        console.error('Error al eliminar:', e);
+      } catch (error) {
+        console.error('Error en el proceso de borrado:', error);
       }
+    },
+
+    resetearModelo() {
+      this.modeloRol = { id: '', nombre: '', nivel_privilegio: 1, descripcion: '' };
     }
   }
 }
 </script>
 
 <style scoped>
-.roles-panel { padding: 25px; background: #f8fafc; min-height: 100vh; }
-.cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-.btn-main { background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+.panelRoles { padding: 30px; background: #f8fafc; border-radius: 15px; }
+.headerSeccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 
-.formulario-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 30px; border: 1px solid #e2e8f0; }
-.grid-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
-.grid-inputs input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
-.btn-save { background: #10b981; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.btnAccion { 
+  background: #4f46e5; 
+  color: white; 
+  border: none; 
+  padding: 12px 24px; 
+  border-radius: 10px; 
+  cursor: pointer; 
+  font-weight: 600; 
+  transition: transform 0.2s;
+}
+.btnAccion:hover { transform: translateY(-2px); background: #4338ca; }
 
-.lista-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
-.tarjeta-rol { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid #6366f1; }
-.rol-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.badge-nivel { background: #e0e7ff; color: #4338ca; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 12px; }
-.id-tag { color: #94a3b8; font-family: monospace; }
-.tarjeta-rol h4 { margin: 10px 0; color: #1e293b; }
-.tarjeta-rol p { font-size: 13px; color: #64748b; margin-bottom: 15px; }
-.acciones { border-top: 1px solid #f1f5f9; padding-top: 12px; text-align: right; }
-.btn-del { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 12px; font-weight: bold; }
+.cardRegistro { 
+  background: white; 
+  padding: 25px; 
+  border-radius: 12px; 
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); 
+  margin-bottom: 40px; 
+  border: 1px solid #e2e8f0; 
+}
+
+.gridCampos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px; }
+.grupoInput label { display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 8px; text-transform: uppercase; }
+.grupoInput input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+
+.btnGuardar { background: #10b981; color: white; border: none; padding: 14px; width: 100%; border-radius: 8px; font-weight: 700; cursor: pointer; }
+
+.gridRoles { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
+.tarjetaRol { 
+  background: white; 
+  border-radius: 12px; 
+  padding: 25px; 
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); 
+  border-top: 5px solid #6366f1; 
+  display: flex;
+  flex-direction: column;
+}
+
+.rolMeta { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+.badgePrivilegio { background: #eef2ff; color: #4f46e5; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 6px; }
+.idSistema { color: #94a3b8; font-size: 12px; font-weight: 500; }
+
+.rolTitulo { margin: 10px 0; color: #1e293b; font-size: 18px; }
+.rolInfo { font-size: 14px; color: #64748b; line-height: 1.5; flex-grow: 1; margin-bottom: 20px; }
+
+.rolFooter { border-top: 1px solid #f1f5f9; padding-top: 15px; display: flex; justify-content: flex-end; }
+.btnBorrar { background: none; border: none; color: #f43f5e; cursor: pointer; font-size: 13px; font-weight: 700; transition: color 0.2s; }
+.btnBorrar:hover { color: #be123c; text-decoration: underline; }
+.estadoVacio { text-align: center; color: #94a3b8; padding: 50px; font-style: italic; }
+
+/* Animación de apertura */
+.slide-enter-active, .slide-leave-active { transition: all 0.3s ease; }
+.slide-enter, .slide-leave-to { opacity: 0; transform: translateY(-20px); }
 </style>

@@ -1,41 +1,46 @@
 <template>
-  <div class="panel-incidencias">
-    <div class="header-seccion">
-      <h2>🛠️ Panel de Control TIC</h2>
-      <div class="filtros">
-        <button @click="filtro = 'todos'" :class="{active: filtro === 'todos'}">Todas</button>
-        <button @click="filtro = '11111'" :class="{active: filtro === '11111'}">Pendientes</button>
-        <button @click="filtro = '22222'" :class="{active: filtro === '22222'}">En Proceso</button>
-        <button @click="filtro = '33333'" :class="{active: filtro === '33333'}">Resueltas</button>
+  <div class="panelIncidenciasTics">
+    <div class="headerSeccion">
+      <h2>Gestión de Soporte TIC</h2>
+      
+      <div class="filtrosEstado">
+        <button @click="filtroActual = 'todos'" :class="{ active: filtroActual === 'todos' }">Todas</button>
+        <button @click="filtroActual = '11111'" :class="{ active: filtroActual === '11111' }">Pendientes</button>
+        <button @click="filtroActual = '22222'" :class="{ active: filtroActual === '22222' }">En Proceso</button>
+        <button @click="filtroActual = '33333'" :class="{ active: filtroActual === '33333' }">Resueltas</button>
       </div>
     </div>
 
-    <div class="grid-incidencias">
-      <div v-for="inc in incidenciasFiltradas" :key="inc.id" class="card-incidencia">
-        <div class="card-header">
-          <span :class="['status-badge', getStatusClass(inc.estado_incidencia_id)]">
-            {{ getStatusText(inc.estado_incidencia_id) }}
+    <div class="gridIncidencias">
+      <div v-for="incidencia in incidenciasFiltradas" :key="incidencia.id" class="cardIncidencia">
+        <div class="cardHeader">
+          <span :class="['statusBadge', obtenerClaseEstado(incidencia.estado_incidencia_id)]">
+            {{ obtenerTextoEstado(incidencia.estado_incidencia_id) }}
           </span>
-          <span class="fecha">{{ inc.zfecha ? inc.zfecha.split('T')[0] : 'S/F' }}</span>
+          <span class="txtFecha">{{ incidencia.zfecha ? incidencia.zfecha.split('T')[0] : 'Sin fecha' }}</span>
         </div>
         
-        <h3>Ticket #{{ inc.id }}</h3>
-        <p class="descripcion">{{ inc.descripcion_problema || 'Sin descripción' }}</p>
+        <h3>Ticket #{{ incidencia.id }}</h3>
+        <p class="txtDescripcion">{{ incidencia.descripcion_problema || 'El usuario no ha proporcionado una descripción.' }}</p>
         
-        <div class="info-footer">
-          <span>📍 <strong>Espacio:</strong> {{ inc.espacio_id }}</span>
-          <span>👤 <strong>User:</strong> {{ inc.usuario_login }}</span>
+        <div class="infoMeta">
+          <span>Ubicación: <strong>{{ incidencia.espacio_id }}</strong></span>
+          <span>Usuario: <strong>{{ incidencia.usuario_login }}</strong></span>
         </div>
 
-        <div class="acciones-tic">
-          <label>Actualizar Estado:</label>
-          <select @change="actualizarEstado(inc.id, $event.target.value)" :value="inc.estado_incidencia_id">
-            <option value="11111">Pendiente</option>
-            <option value="22222">En Proceso</option>
-            <option value="33333">Resuelta</option>
+        <div class="accionesTecnicas">
+          <label>Cambiar Estado del Ticket:</label>
+          <select @change="actualizarEstadoTicket(incidencia.id, $event.target.value)" :value="incidencia.estado_incidencia_id">
+            <option value="11111">PENDIENTE (Sin asignar)</option>
+            <option value="22222">EN PROCESO (Revisión)</option>
+            <option value="33333">RESUELTA (Cerrado)</option>
           </select>
         </div>
       </div>
+    </div>
+
+    <div v-if="incidenciasFiltradas.length === 0" class="sinResultados">
+      No se han encontrado incidencias con el filtro seleccionado.
     </div>
   </div>
 </template>
@@ -45,90 +50,137 @@ export default {
   name: 'IncidenciasTIC',
   data() {
     return {
-      incidencias: [],
-      filtro: 'todos',
-      // Base URL sin la barra final para construir la ruta dinámicamente
+      listaIncidencias: [],
+      filtroActual: 'todos',
+      // Endpoint base configurado para operaciones CRUD
       apiUrl: "http://44.207.19.239:3000/incidencias",
       zusuario: "acuesta" 
     }
   },
   computed: {
+    // Lógica de filtrado reactivo
     incidenciasFiltradas() {
-      if (this.filtro === 'todos') return this.incidencias;
-      return this.incidencias.filter(i => i.estado_incidencia_id === this.filtro);
+      if (this.filtroActual === 'todos') return this.listaIncidencias;
+      return this.listaIncidencias.filter(i => i.estado_incidencia_id === this.filtroActual);
     }
   },
   mounted() {
     this.cargarIncidencias();
   },
   methods: {
+    // Obtiene el volcado completo de incidencias para el equipo técnico
     async cargarIncidencias() {
       try {
-        const res = await fetch(`${this.apiUrl}?zusuario=${this.zusuario}`);
-        this.incidencias = await res.json();
-      } catch (e) {
-        console.error("Error cargando datos", e);
+        const respuesta = await fetch(`${this.apiUrl}?zusuario=${this.zusuario}`);
+        if (!respuesta.ok) throw new Error("Error de red");
+        this.listaIncidencias = await respuesta.json();
+      } catch (error) {
+        console.error("Error al sincronizar con el servidor TIC:", error);
       }
     },
-    async actualizarEstado(id, nuevoEstadoId) {
-      // Construcción exacta según tu imagen: `${BASE_URL}/${id}${zID}`
-      // Donde zID incluye el signo de interrogación y el usuario
-      const zID = `?zusuario=${this.zusuario}`;
-      const urlCompleta = `${this.apiUrl}/${id}${zID}`;
+
+    // Actualiza el registro mediante el método PUT
+    async actualizarEstadoTicket(id, nuevoEstadoId) {
+      // Formato de URL según requerimientos de la API: url/id?zusuario=...
+      const urlDestino = `${this.apiUrl}/${id}?zusuario=${this.zusuario}`;
       
       try {
-        const res = await fetch(urlCompleta, {
-          method: 'PUT', // Método definido en tu código
+        const respuesta = await fetch(urlDestino, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            estado_incidencia_id: nuevoEstadoId, // Cambiamos el ID del estado
+            estado_incidencia_id: nuevoEstadoId,
             zusuario: this.zusuario,
             zfecha: new Date().toISOString()
           })
         });
 
-        if (res.ok) {
+        if (respuesta.ok) {
+          // Recarga silenciosa para confirmar el cambio en la UI
           await this.cargarIncidencias();
         } else {
-          console.error("Error en la respuesta de la API");
-          this.cargarIncidencias();
+          alert("No se pudo actualizar el estado. Inténtalo de nuevo.");
+          this.cargarIncidencias(); // Revertimos cambios locales
         }
-      } catch (e) {
-        alert("Error de conexión");
+      } catch (error) {
+        console.error("Error de conexión en el proceso PUT:", error);
       }
     },
-    getStatusClass(id) {
-      if (id === '11111') return 'bg-error';
-      if (id === '22222') return 'bg-warning';
-      return 'bg-success';
+
+    // Ayudantes visuales
+    obtenerClaseEstado(id) {
+      const clases = { '11111': 'bgError', '22222': 'bgWarning', '33333': 'bgSuccess' };
+      return clases[id] || '';
     },
-    getStatusText(id) {
-      const mapeo = { '11111': 'PENDIENTE', '22222': 'EN PROCESO', '33333': 'RESUELTA' };
-      return mapeo[id] || id;
+    
+    obtenerTextoEstado(id) {
+      const textos = { '11111': 'PENDIENTE', '22222': 'EN PROCESO', '33333': 'RESUELTA' };
+      return textos[id] || id;
     }
   }
 }
 </script>
 
 <style scoped>
-.panel-incidencias { background: #f8fafc; padding: 20px; min-height: 100vh; }
-.header-seccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-.filtros button { padding: 8px 16px; margin-left: 10px; border: 1px solid #cbd5e1; background: white; border-radius: 8px; cursor: pointer; }
-.filtros button.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+.panelIncidenciasTics { background: #f8fafc; padding: 30px; min-height: 100vh; }
+.headerSeccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 
-.grid-incidencias { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
-.card-incidencia { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 4px solid #3b82f6; }
+.filtrosEstado button { 
+  padding: 10px 18px; 
+  margin-left: 10px; 
+  border: 1px solid #cbd5e1; 
+  background: white; 
+  border-radius: 8px; 
+  cursor: pointer; 
+  font-weight: 500;
+  transition: all 0.2s;
+}
 
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.status-badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: bold; }
-.bg-error { background: #fee2e2; color: #dc2626; }
-.bg-warning { background: #fef3c7; color: #d97706; }
-.bg-success { background: #dcfce7; color: #16a34a; }
+.filtrosEstado button.active { background: #3b82f6; color: white; border-color: #3b82f6; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3); }
 
-.descripcion { color: #475569; margin: 15px 0; min-height: 40px; font-size: 14px; }
-.info-footer { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+.gridIncidencias { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; }
+.cardIncidencia { 
+  background: white; 
+  padding: 25px; 
+  border-radius: 12px; 
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+  border-top: 5px solid #3b82f6; 
+  transition: transform 0.2s;
+}
+.cardIncidencia:hover { transform: translateY(-4px); }
 
-.acciones-tic { margin-top: 20px; }
-.acciones-tic label { display: block; font-size: 11px; font-weight: bold; color: #94a3b8; margin-bottom: 5px; }
-.acciones-tic select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f9fafb; font-weight: bold; }
+.cardHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.statusBadge { padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; }
+
+.bgError { background: #fee2e2; color: #dc2626; }
+.bgWarning { background: #fef3c7; color: #d97706; }
+.bgSuccess { background: #dcfce7; color: #16a34a; }
+
+.txtFecha { font-size: 12px; color: #94a3b8; font-weight: 500; }
+.txtDescripcion { color: #475569; margin: 20px 0; min-height: 50px; font-size: 14px; line-height: 1.6; }
+
+.infoMeta { 
+  display: flex; 
+  justify-content: space-between; 
+  font-size: 12px; 
+  color: #64748b; 
+  background: #f1f5f9; 
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.accionesTecnicas { margin-top: 25px; }
+.accionesTecnicas label { display: block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 8px; text-transform: uppercase; }
+.accionesTecnicas select { 
+  width: 100%; 
+  padding: 12px; 
+  border-radius: 8px; 
+  border: 1px solid #e2e8f0; 
+  background: #f9fafb; 
+  font-weight: 600; 
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.sinResultados { text-align: center; padding: 60px; color: #94a3b8; font-style: italic; }
 </style>

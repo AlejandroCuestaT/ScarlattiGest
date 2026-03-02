@@ -1,48 +1,48 @@
 <template>
-  <div class="etapas-container">
-    <div class="cabecera">
-      <h2>🎓 Etapas Educativas</h2>
-      <button @click="mostrarFormulario = !mostrarFormulario" class="btn-toggle">
-        {{ mostrarFormulario ? '✖️ Cancelar' : '➕ Nueva Etapa' }}
+  <div class="etapasContainer">
+    <div class="cabeceraSeccion">
+      <h2>Etapas Educativas</h2>
+      <button @click="mostrarFormulario = !mostrarFormulario" class="btnToggle">
+        {{ mostrarFormulario ? 'Cancelar' : 'Nueva Etapa' }}
       </button>
     </div>
 
     <transition name="fade">
-      <div v-if="mostrarFormulario" class="formulario-card">
+      <div v-if="mostrarFormulario" class="formularioCard">
         <h3>Añadir Nueva Etapa</h3>
-        <form @submit.prevent="guardar">
-          <div class="form-group">
+        <form @submit.prevent="guardarEtapa">
+          <div class="formGroup">
             <label>ID de Etapa (Código único):</label>
-            <input v-model="form.id" placeholder="Ej: BACH, ESO, CYBER" required @input="form.id = form.id.toUpperCase()">
+            <input v-model="formEtapa.id" placeholder="Ej: BACH, ESO, CYBER" required @input="formEtapa.id = formEtapa.id.toUpperCase()">
           </div>
-          <div class="form-group">
+          <div class="formGroup">
             <label>Nombre:</label>
-            <input v-model="form.nombre" placeholder="Ej: Bachillerato" required>
+            <input v-model="formEtapa.nombre" placeholder="Ej: Bachillerato" required>
           </div>
-          <div class="form-group">
+          <div class="formGroup">
             <label>Descripción:</label>
-            <textarea v-model="form.descripcion" placeholder="Breve descripción de la etapa" required></textarea>
+            <textarea v-model="formEtapa.descripcion" placeholder="Breve descripción de la etapa" required></textarea>
           </div>
-          <button type="submit" class="btn-save">💾 Guardar Etapa</button>
+          <button type="submit" class="btnSave">Guardar Etapa</button>
         </form>
       </div>
     </transition>
 
-    <div class="grid-etapas">
-      <div v-for="etapa in etapas" :key="etapa.id" class="tarjeta-etapa">
-        <div class="badge-id">ID: {{ etapa.id || 'S/N' }}</div>
+    <div class="gridEtapas">
+      <div v-for="etapa in listaEtapas" :key="etapa.id" class="tarjetaEtapa">
+        <div class="badgeId">ID: {{ etapa.id || 'S/N' }}</div>
         <h4>{{ etapa.nombre }}</h4>
         <p>{{ etapa.descripcion }}</p>
-        <div class="acciones">
-          <button @click="eliminar(etapa.id)" class="btn-eliminar">
-            🗑️ Eliminar
+        <div class="accionesCard">
+          <button @click="eliminarEtapa(etapa.id)" class="btnEliminar">
+            Eliminar Etapa
           </button>
         </div>
       </div>
     </div>
 
-    <div v-if="etapas.length === 0" class="no-data">
-      No se encontraron etapas educativas cargadas.
+    <div v-if="listaEtapas.length === 0" class="noData">
+      No se encontraron etapas educativas cargadas en el sistema.
     </div>
   </div>
 </template>
@@ -52,105 +52,122 @@ export default {
   name: 'EtapasComponent',
   data() {
     return {
-      // IP corregida para evitar errores de conexión
-      url: 'http://44.207.19.239:3000/etapas',
+      // Configuración de endpoint y zusuario
+      apiUrl: 'http://44.207.19.239:3000/etapas',
       zusuario: 'acuesta',
-      etapas: [],               
+      // Estado de datos
+      listaEtapas: [],               
       mostrarFormulario: false,
-      form: { id: '', nombre: '', descripcion: '' }
+      // Modelo para el formulario de alta
+      formEtapa: { id: '', nombre: '', descripcion: '' }
     }
   },
   mounted() {
-    this.cargar();
+    // Carga automática al iniciar el componente
+    this.cargarEtapas();
   },
   methods: {
-    async cargar() {
+    // Recupera la lista de etapas desde el servidor
+    async cargarEtapas() {
       try {
-        const res = await fetch(`${this.url}?zusuario=${this.zusuario}`);
-        if (!res.ok) throw new Error("Error al obtener datos");
-        this.etapas = await res.json();
-      } catch (e) {
-        console.error('Error al cargar etapas:', e);
+        const respuesta = await fetch(`${this.apiUrl}?zusuario=${this.zusuario}`);
+        if (!respuesta.ok) throw new Error("Error al obtener datos");
+        this.listaEtapas = await respuesta.json();
+      } catch (error) {
+        console.error('Error al cargar etapas:', error);
       }
     },
-    async guardar() {
-      // Bloqueo de seguridad: Evita enviar IDs vacíos que rompen la vista
-      if (!this.form.id.trim()) {
-        return alert("Error: El ID es obligatorio para identificar la etapa.");
+
+    // Envía la nueva etapa validando que el ID no esté vacío
+    async guardarEtapa() {
+      if (!this.formEtapa.id.trim()) {
+        return alert("El código ID es obligatorio para identificar la etapa.");
       }
 
+      // Estructura de datos con spread y metadatos de auditoría
       const payload = { 
-        id: this.form.id.trim(), 
-        nombre: this.form.nombre,
-        descripcion: this.form.descripcion,
+        ...this.formEtapa,
+        id: this.formEtapa.id.trim(), 
         zusuario: this.zusuario,
         zfecha: new Date().toISOString()
       };
 
       try {
-        const res = await fetch(`${this.url}?zusuario=${this.zusuario}`, {
+        const respuesta = await fetch(`${this.apiUrl}?zusuario=${this.zusuario}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
+        if (respuesta.ok) {
           this.mostrarFormulario = false;
-          this.form = { id: '', nombre: '', descripcion: '' };
-          await this.cargar();
+          this.resetFormulario();
+          await this.cargarEtapas(); // Refrescamos la vista
         } else {
-          const err = await res.json();
-          alert("Error de la API: " + (err.error || "Datos no válidos"));
+          const errorJson = await respuesta.json();
+          alert("Error de la API: " + (errorJson.error || "Datos no válidos"));
         }
-      } catch (e) {
-        alert("Fallo de conexión al guardar.");
+      } catch (error) {
+        alert("Fallo de conexión al intentar guardar.");
       }
     },
-    async eliminar(id) {
-      // Si el ID está vacío (como el de tu prueba), avisamos al usuario
+
+    // Elimina un registro tras confirmar y verificar el ID
+    async eliminarEtapa(id) {
       if (!id) {
-        return alert("Este registro tiene un ID corrupto. Intenta borrarlo desde la consola del navegador.");
+        return alert("Error: ID no válido para eliminación.");
       }
 
       if (!confirm(`¿Estás seguro de eliminar la etapa "${id}"?`)) return;
 
-      // Ruta dinámica correcta: BASE_URL/ID?zusuario=USUARIO
-      const urlDelete = `${this.url}/${id}?zusuario=${this.zusuario}`;
-
       try {
-        const res = await fetch(urlDelete, { method: 'DELETE' });
-        if (res.ok) {
-          await this.cargar();
+        // Formato de URL: BASE_URL/ID?zusuario=USUARIO
+        const urlDelete = `${this.apiUrl}/${id}?zusuario=${this.zusuario}`;
+        const respuesta = await fetch(urlDelete, { method: 'DELETE' });
+        
+        if (respuesta.ok) {
+          await this.cargarEtapas();
         } else {
-          // Captura el 404 si el ID no existe en el servidor
-          alert("La API no pudo encontrar el registro para borrarlo.");
+          alert("El servidor no pudo encontrar el registro solicitado.");
         }
-      } catch (e) {
-        console.error('Error al eliminar:', e);
+      } catch (error) {
+        console.error('Error al eliminar:', error);
       }
+    },
+
+    // Limpia el objeto del formulario
+    resetFormulario() {
+      this.formEtapa = { id: '', nombre: '', descripcion: '' };
     }
   }
 }
 </script>
 
 <style scoped>
-.etapas-container { padding: 20px; font-family: sans-serif; background: #f4f7f9; min-height: 80vh; }
-.cabecera { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.btn-toggle { background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; }
+.etapasContainer { padding: 20px; background: #f4f7f9; min-height: 80vh; }
+.cabeceraSeccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.btnToggle { background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: 500; }
 
-.formulario-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 30px; }
-.form-group { margin-bottom: 15px; }
-.form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
-.form-group input, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-.btn-save { background: #10b981; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.formularioCard { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 30px; }
+.formGroup { margin-bottom: 15px; }
+.formGroup label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; color: #475569; }
+.formGroup input, .formGroup textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+.btnSave { background: #10b981; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+.btnSave:hover { background: #059669; }
 
-.grid-etapas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-.tarjeta-etapa { background: white; border-radius: 10px; padding: 20px; border-left: 5px solid #3b82f6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-.badge-id { font-size: 10px; color: #94a3b8; font-weight: bold; margin-bottom: 10px; }
-.tarjeta-etapa h4 { margin: 0 0 10px 0; color: #1e293b; }
-.tarjeta-etapa p { font-size: 14px; color: #64748b; line-height: 1.4; }
-.acciones { margin-top: 15px; border-top: 1px solid #f1f5f9; padding-top: 10px; }
-.btn-eliminar { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; font-size: 13px; }
+.gridEtapas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+.tarjetaEtapa { background: white; border-radius: 10px; padding: 20px; border-left: 5px solid #3b82f6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+.badgeId { font-size: 10px; color: #94a3b8; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
+.tarjetaEtapa h4 { margin: 0 0 10px 0; color: #1e293b; font-size: 18px; }
+.tarjetaEtapa p { font-size: 14px; color: #64748b; line-height: 1.5; }
 
-.no-data { text-align: center; margin-top: 50px; color: #94a3b8; }
+.accionesCard { margin-top: 15px; border-top: 1px solid #f1f5f9; padding-top: 12px; }
+.btnEliminar { background: none; border: none; color: #ef4444; font-weight: 600; cursor: pointer; font-size: 13px; }
+.btnEliminar:hover { text-decoration: underline; }
+
+.noData { text-align: center; margin-top: 50px; color: #94a3b8; font-style: italic; }
+
+/* Animación simple para el formulario */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter, .fade-leave-to { opacity: 0; }
 </style>
