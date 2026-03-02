@@ -1,0 +1,9 @@
+services:
+  escarlatti-gest:
+    image: nginx:alpine
+    container_name: escarlatti_vfinal
+    ports:
+      - "8080:80"
+    volumes:
+      - ./dist:/usr/share/nginx/html
+    restart: always
